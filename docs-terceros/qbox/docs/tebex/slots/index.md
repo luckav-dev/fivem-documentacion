@@ -1,0 +1,21 @@
+> Fuente original: https://github.com/Qbox-project/qbox-docs/blob/260c0ecedce58bece2cf94ebef73be42d08258ac/docs/tebex/slots/index.mdx · repositorio Qbox-project/qbox-docs @ 260c0ec · copiado el 2026-10-20
+
+# 🎰 Casino Slots
+
+> **Vídeo:** [https://youtu.be/6j525WgTXAU](https://youtu.be/6j525WgTXAU)
+
+[Get it on Tebex](https://tebex.qbox.re/scripts/casino-slots)
+
+Bring the fun of the casino straight to your FiveM server with our Casino Slots script! Now your players can spin the reels and try their luck with fully working slot machines that feel just like the real deal. It’s super easy to set up and works smoothly for everyone on the server. With cool animations and sounds, it adds a fresh way for players to hang out and win big. Perfect for RP servers looking to spice things up and keep players coming back for more. Ready to make your server the place to be? Add Casino Slots today and let the good times roll!
+
+## Features
+
+- **Networked sounds** between players while being **sv_enableNetworkedSounds** compatible
+- **All local** objects so no entity ownership shenanigans and **SetRoutingBucketEntityLockdownMode** compatible
+- **Very minimal** network event usage and no **statebag nonsense**!
+- **Locales** support
+- **Seamless** animation actions in between, perfect transitions and no stuttering.
+- **Perfect** enter animation depending on where you are standing next to the slot machine.
+- Ability to make certain slot models **penny slots** and others **VIP**. Rewards and possible betting amounts all **completely configurable** per different model!
+- **Logging already setup** and the ability to use your own logging service.
+- **Prevent players** from using any machine at all by hooking your own casino membership logic!

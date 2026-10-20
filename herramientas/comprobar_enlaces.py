@@ -56,7 +56,7 @@ def main():
         texto = sin_codigo(md.read_text(encoding='utf-8', errors='replace'))
         destinos = ENLACE.findall(texto) + IMAGEN.findall(texto) + HTML_SRC.findall(texto)
         for destino in destinos:
-            if re.match(r'^[a-z][a-z0-9+.-]*:', destino, re.I) or destino.startswith('//'):
+            if re.match(r'^<?[a-z][a-z0-9+.-]*:', destino, re.I) or destino.startswith('//'):
                 continue  # externo (http, https, mailto, fivem://...)
             ruta_txt, _, ancla = destino.partition('#')
             ruta = (md.parent / unquote(ruta_txt)).resolve() if ruta_txt else md

@@ -1,0 +1,34 @@
+> Fuente original: https://github.com/overextended/docs/blob/328e36feb5b0486d6214971f53c6d2626193cc28/content/docs/ox_lib/GetNearbyVehicles/JavaScript/Shared.mdx · repositorio overextended/docs @ 328e36f · copiado el 2026-10-20
+
+# Shared
+
+## getNearbyVehicles
+
+Get the vehicle handle and coords of all vehicles within range of a set of coordinates.
+
+```ts
+getNearbyVehicles(coords: Vector3, maxDistance?: number, includePlayerVehicle?: boolean)
+```
+
+`
+
+- coords: `Vector3`
+  - The coords to check from.
+- maxDistance?: `number`
+  - The max distance to check.
+  - Default: `2.0`
+- includePlayerVehicle?: `boolean`
+  - Whether or not to include the player's current vehicle (Ignored on the server)
+  - Default: `false`
+
+Return:
+
+- NearbyVehicle: `{ vehicle: number, coords: vector3 }[]`
+
+```ts
+import { Vector3 } from "@nativewrappers/fivem";
+import { cache, getNearbyVehicles } from "@overextended/ox_lib/client";
+
+const playerCoords = Vector3.fromArray(GetEntityCoords(cache.ped, true));
+const nearbyVehicles = getNearbyVehicles(playerCoords, 50, true);
+```

@@ -1,0 +1,67 @@
+> Fuente original: https://github.com/Qbox-project/qbox-docs/blob/260c0ecedce58bece2cf94ebef73be42d08258ac/docs/introduction/installation.mdx · repositorio Qbox-project/qbox-docs @ 260c0ec · copiado el 2026-10-20
+
+# Installation
+
+*Step-by-step guide for installing the Qbox framework on your FiveM server. Learn how to deploy using txAdmin and choose the right recipe for your needs.*
+
+### Visual learner? Watch this video instead!
+
+> **Vídeo:** [https://www.youtube.com/watch?v=FQGsXn0bRcI](https://www.youtube.com/watch?v=FQGsXn0bRcI)
+
+> **Nota:**
+>
+> * We highly recommend using **txAdmin** to install your FiveM server.
+> * For detailed instructions, refer to [Setting up a server using txAdmin](https://docs.fivem.net/docs/server-manual/setting-up-a-server-txadmin/).
+
+> **Peligro: XAMPP IS NOT SUPPORTED AND SHOULD NEVER EVEN BE USED.**
+>
+> * We expect you to already have **MariaDB** installed. **MySQL is not supported.**
+> * Download MariaDB from the official website: [MariaDB Downloads](https://mariadb.org/download/).
+> * **Minimum version:** MariaDB **10.9.0**
+> * **Recommended:** MariaDB **12.3 LTS**, current long-term support release, maintained until June 2029.
+
+### MariaDB version requirements
+
+Qbox targets **MariaDB**, not MySQL or XAMPP. Several core SQL features depend on a recent server:
+
+| Feature | Used for | MariaDB minimum |
+| --- | --- | --- |
+| `JSON_VALUE()` | Unique phone, account, and metadata lookups in `qbx_core` | **10.6.1** |
+| `ADD COLUMN IF NOT EXISTS` | `qbx_core.sql` and runtime player-table migrations | 10.0.2 |
+| `CREATE INDEX IF NOT EXISTS` | Idempotent `users` identifier indexes on resource start | **10.9.0** |
+
+**Minimum to run Qbox:** MariaDB **10.9.0**. Core uses `JSON_VALUE()` (10.6.1+) and idempotent index creation on connect lookups (10.9.0+); the higher version is the effective floor.
+
+**Recommended for new servers:** MariaDB **12.3 LTS**. It is the current LTS branch and is supported until June 2029. Older LTS releases such as 10.11 or 11.8 also work, but 12.3 is the better default for new installs in 2026.
+
+## Installation Steps
+
+### 1. Download the server
+
+Download the latest [FiveM artifacts](https://runtime.fivem.net/artifacts/fivem/build_server_windows/master/) and extract the files. Do not use the buttons at the top. Download directly from the list.
+
+![Latest Artifacts](../../imagenes/img/artifacts.png)
+
+### 2. Extract the artifacts
+
+Now extract the `server.7z` with any archive manager of your choosing. We recommend using [7-Zip](https://www.7-zip.org/). Extract it as `/server` so you keep the server folder name.
+
+### 3. Starting the server
+
+Open the folder you just extracted it to. It should look a little like this. And then run `FXServer.exe`.
+
+![Server Folder](../../imagenes/img/artifact-list.png)
+
+### 4. Start the recipe installation
+
+Run `FXServer.exe` to start txAdmin and follow all the steps.
+
+### 5. Deploy the recipe
+
+When prompted, select `Popular Recipes` and then `QBox Framework`:
+
+![Deployment Type](../../imagenes/img/txadmin-deployment-type.jpg)
+
+### 6. Run the server
+
+Once you have completed all of the installation steps, run the server.

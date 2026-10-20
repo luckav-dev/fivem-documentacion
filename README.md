@@ -110,14 +110,14 @@ Namespaces de GTA V: [APP](natives/gta5/APP.md) · [AUDIO](natives/gta5/AUDIO.md
 
 ## Documentación de terceros
 
-| Proyecto | Qué es | Dónde |
-|---|---|---|
-| Overextended | ox_lib, oxmysql, ox_inventory, ox_target, ox_core, ox_doorlock, ox_fuel… | [docs-terceros/overextended](docs-terceros/overextended/README.md) |
-| txAdmin | Panel de administración integrado en FXServer | [docs-terceros/txadmin](docs-terceros/txadmin/README.md) |
-| Qbox | Framework `qbx_core` y sus recursos | [docs-terceros/qbox](docs-terceros/qbox/README.md) |
-| QBCore | Framework `qb-core` y sus recursos | [docs-terceros/qbcore](docs-terceros/qbcore/README.md) |
-| ESX Legacy | Framework `es_extended` y sus recursos | [docs-terceros/esx](docs-terceros/esx/README.md) |
-| pma-voice | Sistema de voz | [docs-terceros/pma-voice](docs-terceros/pma-voice/README.md) |
+| Proyecto | Qué contiene | Páginas | Dónde |
+|---|---|---|---|
+| Overextended | ox_lib, oxmysql, ox_inventory, ox_target, ox_core, ox_doorlock, ox_fuel y guías | 127 | [docs-terceros/overextended](docs-terceros/overextended/README.md) |
+| txAdmin | Menú in-game, permisos, eventos, recetas, variables de entorno, logs | 13 | [docs-terceros/txadmin](docs-terceros/txadmin/README.md) |
+| Qbox | qbx_core y recursos qbx_*, Dashboard, Tebex y blog | 83 | [docs-terceros/qbox](docs-terceros/qbox/README.md) |
+| QBCore | Guías, referencia de qb-core y recursos qb-* | 84 | [docs-terceros/qbcore](docs-terceros/qbcore/README.md) |
+| ESX Legacy | es_extended, recursos del núcleo, addons esx_* y tutoriales | 82 | [docs-terceros/esx](docs-terceros/esx/README.md) |
+| pma-voice | Convars, exports, eventos y state bags del sistema de voz | 19 | [docs-terceros/pma-voice](docs-terceros/pma-voice/README.md) |
 
 Índice general: [docs-terceros/README.md](docs-terceros/README.md).
 

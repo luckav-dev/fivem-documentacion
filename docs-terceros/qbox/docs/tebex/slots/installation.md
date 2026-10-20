@@ -1,0 +1,19 @@
+> Fuente original: https://github.com/Qbox-project/qbox-docs/blob/260c0ecedce58bece2cf94ebef73be42d08258ac/docs/tebex/slots/installation.mdx · repositorio Qbox-project/qbox-docs @ 260c0ec · copiado el 2026-10-20
+
+# Installation
+
+## Downloading the resource
+
+Any and all resources escrowed or not will be delivered using the Cfx.re asset system. You can find the asset manager hub at the following link: https://portal.cfx.re/assets/granted-assets
+
+## Starting the Script on FiveM
+
+1. Place the script anywhere at the same level as your `server.cfg` or make any kind of subdirectory. You will more likely than not have a folder called `resources` where all your currently used scripts reside. You can put `qbx_casino_slots` in here as well.
+
+2. Add the following codeblock to your `server.cfg` or any other `.cfg` that is read on server startup:
+
+```lua
+ensure qbx_casino_slots
+```
+
+That is it! This script is completely plug and play. Every and any slot machine in the world will automatically work.
