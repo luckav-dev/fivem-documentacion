@@ -1,0 +1,122 @@
+# Setting up a FiveM Server
+
+*>*
+
+> Fuente original: https://docs.fivem.net/docs/getting-started/setup-fivem-server/ · repositorio `citizenfx/fivem-docs` @ `6ec9770` · copiado el 2026-10-20 · [índice de la documentación oficial](../README.md)
+
+> **ℹ️ Información**
+>
+> If you already have a FiveM server up & running you can skip this step.
+
+
+🎬 Vídeo: [step-2_setup-fivem-server.mp4](../_archivos/videos/step-2_setup-fivem-server.mp4) (copia local de https://runtime.fivem.net/edu/step-2_setup-fivem-server.mp4)
+
+## 1. Download and open server artifacts
+
+> **ℹ️ Información**
+>
+> Server artifacts contain the software needed to run a FiveM server.
+
+
+> **⚠️ Advertencia**
+>
+> If you are setting up a **FiveM for GTAV Enhanced** server, the [Microsoft Visual C++ 2017 Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) must be installed. Download and install it before running the server.
+
+
+1. Go to [**Server Download**](https://docs.fivem.net/docs/server-download/).
+2. Click **Latest recommended** to download the latest server build.
+The download progresses and completes.
+3. Open the **server.7z** archive using [7-Zip](https://www.7-zip.org/download.html) or a similar tool.
+
+## 2. Create folder and extract contents
+
+1. Create a new folder on your desktop. Name it **FiveM Server** or something recognizable.
+2. Extract all contents of **server.7z** into the new folder.
+
+## 3. Run FXServer and access txAdmin
+
+1. Go to the extracted folder and run **FXServer.exe**.
+Your browser opens **txAdmin** automatically.
+
+> **ℹ️ Información**
+>
+> If you are not automatically redirected, go to: [http://localhost:40120](http://localhost:40120)
+
+
+2. Enter the 4-digit PIN from the console.
+
+## 4. Link your account and register server
+
+1. Click **Link account**.
+2. Sign in and click **Continue** to authorize txAdmin to access your Cfx account.
+3. Set up a backup password.
+4. Review the **Creator Platform License Agreement** and the **txAdmin License**.
+5. If you agree, click the checkbox below the password.
+6. Click **Register**.
+
+The initial server configuration page is displayed.
+
+## 5. Initialize the server settings
+
+1. Enter a **Server Name**, then click **Next**.
+2. For **Deployment Type**, choose **Popular Recipes**.
+3. For **Select Template**, choose **FiveM Basic Server (CFX Default)**.
+4. Leave **Data Location** as-is and click **Save**.
+5. Click **Go to Recipe Deployer**.
+
+## 6. Generate and enter server registration key
+
+1. In **Step 1: Review Recipe**, click **Next**.
+2. In **Step 2: Input Parameters**, click [Portal](https://portal.cfx.re/login?return=%252Fservers%252Fregistration-keys%253Fmodal%253Dcreate) link to open a new tab.
+3. Sign in with Cfx.
+4. Click **Create a key** > enter a display name > click **GENERATE**.\
+   ![Generate a server registration key](../_archivos/getting-started/generate_server_registration_key.png)
+5. Go to your new key and click **copy**.
+6. Return to txAdmin, paste the key in the textbox, and click **Run Recipe**.
+
+## 7. Finish recipe deployment
+
+Wait for the setup process to complete.
+A folder containing your server resources opens. You can close it for now.
+
+## 8. Configure and run the server
+
+> **ℹ️ Información**
+>
+> Your server configuration file appears. No changes are needed.
+
+
+Click **Save and Run Server** to launch your new FiveM server.
+You made it! Your own local FiveM server is now up and running, waiting for you to customize it to your liking!
+
+## Connect to local server
+
+🎬 Vídeo: [step-3_connect-to-fivem-server.mp4](../_archivos/videos/step-3_connect-to-fivem-server.mp4) (copia local de https://runtime.fivem.net/edu/step-3_connect-to-fivem-server.mp4)
+
+## 1. Launch the FiveM client and connect to your server
+
+1. Open the **FiveM client**. Relaunch it if it was previously closed.
+2. Click **Connect to \[ComputerName\] on LAN**, where ComputerName will be your computer name.
+
+> **ℹ️ Información**
+>
+> If you don't see the button, restart the FiveM client.
+
+
+## 2. Verify txAdmin is working
+
+1. Once connected, press **F8** to open the in-game console.
+2. Type **tx** and press **Enter**.
+
+The **txAdmin** in-game menu is displayed.
+
+> **ℹ️ Información**
+>
+> You can close the txAdmin in-game menu with **Backspace** or **Esc**.
+
+
+You are now connected to your local server! Feel free to explore **txAdmin features** like:
+
+- God mode
+- Spawning vehicles
+- Noclip

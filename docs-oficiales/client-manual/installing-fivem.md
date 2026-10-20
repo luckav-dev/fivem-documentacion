@@ -1,0 +1,38 @@
+# Installing FiveM
+
+> Fuente original: https://docs.fivem.net/docs/client-manual/installing-fivem/ · repositorio `citizenfx/fivem-docs` @ `6ec9770` · copiado el 2026-10-20 · [índice de la documentación oficial](../README.md)
+
+Installing FiveM is pretty straightforward. It's usually a matter of [downloading FiveM][home], then simply running the
+downloaded file. For those who'd like a bit more detail, read below.
+
+## Installing
+
+Running into trouble? Make sure your system meets the minimum requirements for [FiveM][legacy-minimum-requirements] / [FiveM for GTAV Enhanced][enhanced-minimum-requirements] and
+read the [client issues manual][client-issues].
+
+- If you experience any issues with your antivirus upon starting FiveM, you may want to submit a [support ticket][antivirus-ticket].
+- Make sure you have installed and updated [GTAV][where-to-buy].
+- [Download FiveM][home] off the website.
+- Run the FiveM.exe. If you run the installer in an empty folder, FiveM will install there. Otherwise, it will install in `%localappdata%\FiveM`.
+- Start FiveM from your Windows start menu.
+
+## Uninstalling
+
+- If you installed FiveM in an empty folder, just delete that folder.
+- Otherwise:
+  - Press `WinKey+R` on your keyboard
+  - Type `appwiz.cpl`
+  - Find FiveM, right-click and press Uninstall
+- Alternatively:
+  - Press `WinKey+R` on your keyboard
+  - Type `%localappdata%` in the dialog that opens
+  - Press Enter
+  - Delete the FiveM folder
+- Run FiveM.exe again if you want to reinstall FiveM.
+
+[home]: https://fivem.net
+[client-issues]: ../support/client-issues.md
+[antivirus-ticket]: https://support.cfx.re/hc/en-us/requests/new
+[where-to-buy]: where-to-buy-gtav.md
+[legacy-minimum-requirements]: https://support.cfx.re/hc/en-us/articles/8017221737244-FiveM-system-requirements
+[enhanced-minimum-requirements]: https://support.cfx.re/hc/en-us/articles/27624091206812-FiveM-for-GTAV-Enhanced-system-requirements
