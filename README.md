@@ -21,7 +21,16 @@
 - Si ya programas: ve directo a **8-15** (scripting, natives, red, NUI, streaming) y **19-20** (seguridad y rendimiento).
 - Si administras un servidor: **3-6**, **16-18**, **21-25**.
 - ¿Prisa? **Chuleta (28)** y **FAQ (29)**.
+- Referencias exhaustivas: **runtime Lua (9.9)**, **navegador NUI (14.11)**, **framework propio (17.6)** y **todos los natives de FiveM (apéndice A, 32)**.
 - Los ejemplos de código están en **Lua** salvo que se indique otro lenguaje.
+- **Funciones de ejemplo**: las funciones con nombre en español (`AbrirTienda`, `DarItem`, `QuitarDinero`, `LogSospechoso`…) representan **tu** lógica y debes implementarlas tú. Todo lo demás está verificado.
+
+**Cómo se ha verificado este documento**
+
+- Cada llamada a un native en los ejemplos Lua y JavaScript se ha comprobado automáticamente contra la **base de datos oficial de natives** (`natives.json` y `natives_cfx.json`): que exista y que lleve el **número de argumentos** correcto.
+- El runtime Lua, los eventos de OneSync y el navegador NUI se han contrastado con el **código fuente de FiveM** (`citizenfx/fivem`, build 37579).
+- Las APIs de ox_lib, ox_inventory, ox_target, ESX, QBCore, Qbox y pma-voice se han contrastado con **sus repositorios oficiales**.
+- Lo que no se ha podido confirmar en una fuente oficial aparece marcado como tal en el texto.
 
 ---
 
@@ -103,6 +112,7 @@
   - [9.6 Estilo y buenas prácticas en Lua](#96-estilo-y-buenas-prácticas-en-lua)
   - [9.7 Módulos y organización](#97-módulos-y-organización)
   - [9.8 Autocompletado en el editor (VS Code)](#98-autocompletado-en-el-editor-vs-code)
+  - [9.9 Referencia completa del runtime Lua (verificada en el código fuente)](#99-referencia-completa-del-runtime-lua-verificada-en-el-código-fuente)
 - [10. JavaScript y TypeScript](#10-javascript-y-typescript)
   - [10.1 Entornos](#101-entornos)
   - [10.2 Manifest](#102-manifest)
@@ -152,6 +162,7 @@
   - [14.8 Pantalla de carga (*loadscreen*)](#148-pantalla-de-carga-loadscreen)
   - [14.9 DUI (páginas web como texturas en el mundo)](#149-dui-páginas-web-como-texturas-en-el-mundo)
   - [14.10 Rendimiento NUI](#1410-rendimiento-nui)
+  - [14.11 Qué soporta el navegador de FiveM (CEF): referencia verificada](#1411-qué-soporta-el-navegador-de-fivem-cef-referencia-verificada)
 - [15. Streaming de assets (vehículos, mapas, ropa, armas…)](#15-streaming-de-assets-vehículos-mapas-ropa-armas)
   - [15.1 Carpeta stream](#151-carpeta-stream)
   - [15.2 Reemplazo vs *add-on*](#152-reemplazo-vs-add-on)
@@ -175,6 +186,7 @@
   - [17.3 QBCore](#173-qbcore)
   - [17.4 Qbox (qbx_core)](#174-qbox-qbx_core)
   - [17.5 Escribir scripts compatibles con varios frameworks (*bridge*)](#175-escribir-scripts-compatibles-con-varios-frameworks-bridge)
+  - [17.6 Crear tu propio framework](#176-crear-tu-propio-framework)
 - [18. Voz: pma-voice y Mumble](#18-voz-pma-voice-y-mumble)
   - [18.1 Estado de pma-voice (2026)](#181-estado-de-pma-voice-2026)
   - [18.2 Convars (con setr)](#182-convars-con-setr)
@@ -250,7 +262,8 @@
 - [31. Enlaces oficiales y recursos](#31-enlaces-oficiales-y-recursos)
   - [Oficiales Cfx.re](#oficiales-cfxre)
   - [Ecosistema](#ecosistema)
-- [32. Historial de este documento](#32-historial-de-este-documento)
+- [32. Apéndice A: todos los natives propios de FiveM (CFX)](#32-apéndice-a-todos-los-natives-propios-de-fivem-cfx)
+- [33. Historial de este documento](#33-historial-de-este-documento)
 
 ---
 
@@ -850,6 +863,9 @@ Códigos `^0`-`^9` (válidos en `sv_hostname`, chat y `print` de consola):
 | `con_addChannelFilter <filtro> <acción>` | Filtra canales de consola por regex (`noprint`, `drop`, `devonly`). |
 | `con_removeChannelFilter <filtro> <acción>` | Quita un filtro. |
 | `con_channelFilters` | Lista filtros activos. |
+| `add_filesystem_permission <origen> <read\|write> <destino>` | Permite que el recurso `origen` lea o escriba archivos del recurso `destino` (por defecto solo puede escribir en sí mismo). Solo funciona en `server.cfg`, antes de que el servidor termine de arrancar. |
+| `add_unsafe_worker_permission <recurso>` | Permite *worker threads* a un recurso JS. Misma restricción. |
+| `add_unsafe_child_process_permission <recurso>` | Permite crear procesos hijo a un recurso JS. Misma restricción. Úsalo solo con recursos de confianza. |
 
 ## 5.3 Convars de configuración
 
@@ -1641,7 +1657,8 @@ local token = GetConvar('discord_bot_token', '')   -- 'set' → solo legible en 
 
 - En el **cliente** solo puedes leer convars definidas con `setr`.
 - Desde el servidor puedes cambiarlas: `SetConvar('x', 'y')`, `SetConvarReplicated('x','y')`, `SetConvarServerInfo('x','y')`.
-- Para booleanos y decimales, lo más compatible es leer con `GetConvar` y convertir (`== 'true'`, `tonumber`).
+- Natives tipados (cliente y servidor): `GetConvarInt(nombre, defecto)`, `GetConvarBool(nombre, defecto)` y `GetConvarFloat(nombre, defecto)` (este último con la imprecisión normal de los decimales).
+- `AddConvarChangeListener(filtro, function(nombre, reservado) end)` avisa cuando cambia una convar (el filtro admite patrones como `'mi_recurso:*'`).
 
 ## 8.10 KVP (almacenamiento clave-valor)
 
@@ -1671,7 +1688,7 @@ if handle ~= -1 then
 end
 ```
 
-Variantes asíncronas `SetResourceKvpNoSync`, `SetResourceKvpIntNoSync`, `SetResourceKvpFloatNoSync` y `DeleteResourceKvpNoSync`, seguidas de `FlushResourceKvp()`, para escribir en lote sin bloquear (en el cliente desde abril de 2025).
+Variantes asíncronas (cliente y servidor): `SetResourceKvpNoSync`, `SetResourceKvpIntNoSync`, `SetResourceKvpFloatNoSync` y `DeleteResourceKvpNoSync`. No esperan a que se escriba en disco: son mucho más rápidas para operaciones en lote, pero si el sistema se cae se pueden perder las últimas escrituras. En el **servidor**, `FlushResourceKvp()` fuerza la escritura (este native solo existe en el servidor).
 
 En el cliente, `GetExternalKvpString/Int/Float(recurso, clave)` y `StartFindExternalKvp` leen el KVP de **otro** recurso.
 
@@ -1751,7 +1768,7 @@ end)
 | `GetHashKey('adder')` / `` `adder` `` | Ambos | Hash Joaat de un string. |
 | `json.encode` / `json.decode` | Ambos | JSON integrado. |
 | `msgpack.pack` / `msgpack.unpack` | Ambos | MessagePack. |
-| `os.time()`, `os.date()` | Servidor (y cliente parcial) | Fecha/hora. En cliente `os` está limitado; usa `GetLocalTime`/`GetUtcTime`. |
+| `os.time()`, `os.date()`, `os.clock()` | **Solo servidor** | En el cliente la librería `os` **no existe** (ver 9.9). En el cliente usa `GetGameTimer()` (ms), `GetCloudTimeAsInt()` (tiempo Unix) o `GetLocalTime()`/`GetUtcTime()` (fecha y hora). |
 | `print(...)` | Ambos | Imprime en consola (F8 en cliente). |
 | `GetInvokingResource()` | Ambos | Qué recurso llamó al export/evento actual (útil para seguridad). |
 
@@ -1828,27 +1845,28 @@ Los **deferrals** permiten retener la conexión para hacer comprobaciones (ban, 
 ```lua
 AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
     local src = source
-    deferrals.defer()                 -- obligatorio antes de cualquier Wait
-    Wait(0)                           -- siempre un frame tras defer()
+    deferrals.defer()                 -- empezar a retener la conexión
+    Wait(0)                           -- OBLIGATORIO: al menos un tick tras defer()
     deferrals.update(('Hola %s, comprobando tu cuenta...'):format(name))
 
     local license = GetPlayerIdentifierByType(src, 'license')
+    local baneado = license and EstaBaneado(license)   -- tu función (p. ej. consulta a la BD)
+
+    Wait(0)                           -- OBLIGATORIO: al menos un tick tras update() antes de done()
     if not license then
         return deferrals.done('No se ha encontrado tu licencia de Rockstar.')
     end
-
-    if EstaBaneado(license) then
+    if baneado then
         return deferrals.done('Estás baneado. Apela en discord.gg/xxxx')
     end
-
     deferrals.done()                  -- sin argumento = permitir
 end)
 ```
 
-- `deferrals.defer()` – empezar a retener.
+- `deferrals.defer()` – empezar a retener. **Regla oficial:** espera al menos un tick (`Wait(0)`) tras `defer()` antes de `update`/`presentCard`/`done`, y al menos un tick tras cualquiera de ellos antes de `done`.
 - `deferrals.update(texto)` – mensaje de progreso.
-- `deferrals.presentCard(cardJson, callback)` – muestra una **Adaptive Card** (formularios, botones). Ver https://adaptivecards.io/designer/
-- `deferrals.handover(tabla)` – adjunta datos de *handover* a la conexión del cliente (uso avanzado; p. ej. lo usan pantallas de carga para recibir datos del servidor).
+- `deferrals.presentCard(card, callback)` – muestra una **Adaptive Card** (formularios, botones). `card` puede ser una tabla o un string JSON; `callback(data, rawData)` se llama con cada `Action.Submit`. Diseñador: https://adaptivecards.io/designer/
+- `deferrals.handover(tabla)` – *handover* dinámico. Según la documentación oficial sirve para indicar los **endpoints** de conexión de ese jugador (`deferrals.handover({ endpoints = { '1.2.3.4' } })`). En el código del cliente, ese bloque de datos se entrega también a la pantalla de carga como `window.nuiHandoverData`.
 - `deferrals.done(motivo?)` – terminar: sin motivo = aceptar; con motivo = rechazar.
 
 **Adaptive Card con botón:**
@@ -1865,7 +1883,8 @@ local card = {
         { type = 'Action.Submit', title = 'Acepto', data = { acepto = true } },
     },
 }
-deferrals.presentCard(json.encode(card), function(data, rawData)
+-- dentro de playerConnecting, después de deferrals.defer() y Wait(0):
+deferrals.presentCard(card, function(data, rawData)   -- el callback llega en un tick posterior (clic del jugador)
     if data.acepto then deferrals.done() else deferrals.done('Debes aceptar las normas') end
 end)
 ```
@@ -1948,7 +1967,7 @@ local MAX_JUGADORES <const> = 64
 | **Constructor de conjuntos** | `local s = { .a, .b }` | `{ a = true, b = true }` |
 | **Comentarios estilo C** | `/* comentario */` | `--[[ comentario ]]` |
 | `each(t)` | `for k, v in each(t) do end` | Iteración genérica (respeta `__iter`) |
-| `defer(fn)` | Función que se ejecuta al salir del ámbito | (función de la librería base, no una sentencia) |
+| `defer(fn)` | `local _ <close> = defer(function() print('fin') end)` | Ejecuta `fn` al salir del ámbito. Es una **función** de la librería base (no la sentencia `defer ... end` de Ravi) |
 
 > Operadores compuestos disponibles: `+=  -=  *=  /=  <<=  >>=  &=  |=  ^=`. **No** existen `++`, `--` (que en Lua es un comentario) ni `..=`.
 
@@ -2087,6 +2106,158 @@ Pasos:
 
 4. Añade a `workspace.library` las rutas de las librerías que uses (por ejemplo, tu copia de `ox_lib`) para tener autocompletado de sus funciones.
 
+
+## 9.9 Referencia completa del runtime Lua (verificada en el código fuente)
+
+Esta sección está sacada **directamente del código fuente de FiveM** (`citizenfx/fivem`: `LuaScriptRuntime.cpp`, `scheduler.lua`, `natives_loader.lua` y el generador de natives `codegen_out_lua.lua`), tal y como está en la build *latest* 37579 (octubre de 2026). Si algo no aparece aquí, **no existe** en el Lua de FiveM.
+
+### 9.9.1 Librerías disponibles en cliente y servidor
+
+| Librería | Cliente | Servidor | Notas |
+|---|---|---|---|
+| Base (`_G`) | ✅ | ✅ | `dofile` y `loadfile` **no existen** (FiveM los pone a `nil`). `print` y `require` están reemplazados por versiones propias. `load` sí está disponible. |
+| `table`, `string`, `math`, `coroutine`, `utf8` | ✅ | ✅ | Con las extensiones de CfxLua (9.3). |
+| `debug` | ✅ | ✅ | |
+| `json` | ✅ | ✅ | Nativa (*rapidjson*). |
+| `msgpack` | ✅ | ✅ | Nativa (*cmsgpack*). |
+| **`io`** | ❌ **No existe** | ✅ | Con *sandbox* (ver 9.9.2). |
+| **`os`** | ❌ **No existe** | ✅ | Con *sandbox* (ver 9.9.2). |
+| `package` | ❌ | ❌ | No se carga: no hay `package.path` ni carga de `.lua` con `require`. |
+| `glm`, `lmprof` | Con `require 'glm'` / `require 'lmprof'` | Igual | Son los **únicos** módulos que acepta el `require` nativo. |
+
+> **Error típico:** usar `os.time()`, `os.date()` u `os.clock()` en un `client_script` → `attempt to index a nil value (global 'os')`. En el cliente usa `GetGameTimer()`, `GetCloudTimeAsInt()` (tiempo Unix), `GetLocalTime()` o `GetUtcTime()` (devuelven año, mes, día, hora, minuto, segundo).
+>
+> El `require` que usan muchos recursos (`require 'modules.utils'`) es el de **ox_lib** (`@ox_lib/init.lua` lo sustituye), no el de FiveM.
+
+### 9.9.2 `io` y `os` en el servidor: qué se permite
+
+| Función | Comportamiento en FiveM |
+|---|---|
+| `io.open(ruta, modo)` | Lectura normal. **Escritura/creación/añadir** solo dentro de la carpeta del **propio recurso**, salvo permiso explícito (ver abajo). |
+| Métodos del archivo abierto: `f:read`, `f:lines`, `f:write`, `f:seek`, `f:setvbuf`, `f:flush`, `f:close` | Funcionan con normalidad. **Para leer línea a línea usa `f:lines()`.** |
+| `io.lines(ruta)` | ⚠️ Devuelve un iterador **vacío**: no lee el archivo. |
+| `io.write(...)` | Equivale a `print` (sale por la consola, no a un archivo). |
+| `io.flush()` | No hace nada. |
+| `io.close`, `io.type`, `io.tmpfile` | Disponibles. |
+| `io.readdir(ruta)` | **Extra de FiveM**: recorre un directorio. |
+| `io.popen(cmd)` | Solo acepta comandos que empiezan por `dir` o `ls` (listar directorios); **cualquier otro comando falla**. |
+| `io.input`, `io.output`, `io.read` | **No existen**. |
+| `os.execute(cmd)` | **Siempre denegado** (devuelve error de permisos). |
+| `os.getenv(nombre)` | Solo responde a `'os'` (`"Windows"` o `"Linux"`); cualquier otra variable devuelve `nil`. |
+| `os.remove`, `os.rename`, `os.createdir` | Sujetos al mismo *sandbox* de rutas. `os.createdir` es un extra de FiveM. |
+| `os.setlocale` | **No cambia** la configuración regional (solo devuelve el valor). |
+| `os.exit` | **No existe**. |
+| `os.time`, `os.date`, `os.clock`, `os.difftime`, `os.tmpname` | Normales. |
+| `os.microtime()`, `os.nanotime()`, `os.deltatime(a, b)` | **Extras de FiveM**: tiempos de alta resolución. |
+
+Permisos de sistema de archivos entre recursos (comandos de `server.cfg`; **solo funcionan antes de que el servidor termine de arrancar**):
+
+```cfg
+add_filesystem_permission mi_recurso write otro_recurso   # o 'read'
+add_unsafe_worker_permission mi_recurso_js                 # JS: permitir worker threads
+add_unsafe_child_process_permission mi_recurso_js          # JS: permitir procesos hijo
+```
+
+> Lo normal y recomendado para leer/escribir archivos del propio recurso es `LoadResourceFile` / `SaveResourceFile` (funcionan igual en Lua, JS y C#).
+
+### 9.9.3 Funciones globales que define el runtime
+
+| Función | Lado | Descripción (según `scheduler.lua`) |
+|---|---|---|
+| `CreateThread(fn)` / `Citizen.CreateThread` | Ambos | Crea una corrutina que se reanuda en cada tick. |
+| `CreateThreadNow(fn)` / `Citizen.CreateThreadNow` | Ambos | Igual, pero empieza a ejecutarse **en el acto** hasta su primer `Wait`. |
+| `Wait(ms)` / `Citizen.Wait` | Ambos | Pausa la corrutina actual. Solo dentro de un thread o de un handler de evento (los handlers se ejecutan como corrutinas). |
+| `SetTimeout(ms, fn)` / `Citizen.SetTimeout` | Ambos | Ejecuta `fn` una vez tras `ms`. Devuelve un id. |
+| `ClearTimeout(id)` / `Citizen.ClearTimeout` | Ambos | Cancela un `SetTimeout`. |
+| `Citizen.Await(promesa)` | Ambos | Espera una `promise`; lanza error si se rechaza. |
+| `promise.new()`, `promise.all`, `promise.first`, `promise.map` | Ambos | Promesas (*lua-promises*). |
+| `AddEventHandler(nombre, fn)` | Ambos | Registra un handler local. **Devuelve** `{ key, name }`. |
+| `RemoveEventHandler(handle)` | Ambos | Quita un handler usando lo que devolvió `AddEventHandler`. |
+| `RegisterNetEvent(nombre[, fn])` | Ambos | Marca el evento como seguro para recibirlo por red y, si pasas `fn`, añade el handler. |
+| `RegisterServerEvent` | Servidor | **Alias** de `RegisterNetEvent` (antiguo). |
+| `TriggerEvent(nombre, ...)` | Ambos | Evento local. |
+| `TriggerServerEvent(nombre, ...)` | Cliente | Al servidor. |
+| `TriggerLatentServerEvent(nombre, bps, ...)` | Cliente | Al servidor, troceado a `bps` bytes/s. |
+| `TriggerClientEvent(nombre, destino, ...)` | Servidor | A un jugador o `-1` (todos). |
+| `TriggerLatentClientEvent(nombre, destino, bps, ...)` | Servidor | Versión latente. |
+| `exports(nombre, fn)` / `exports.recurso:fn(...)` | Ambos | Exports. Si no existe: error `No such export X in resource Y`. No se puede asignar `exports.x = ...` (da error). |
+| `GlobalState`, `Entity(e)`, `Player(id)` | Ambos | State bags. |
+| `LocalPlayer` | Cliente | Equivale a `Player(-1)`: tu propio jugador. |
+| `GetPlayers()` | Servidor | Lista de ids conectados (**strings**). |
+| `GetPlayerIdentifiers(src)` / `GetPlayerTokens(src)` | Servidor | Tablas con todos los identificadores / tokens. |
+| `PerformHttpRequest(url, cb, metodo, datos, cabeceras, opciones)` | Servidor | HTTP saliente. `opciones.followLocation` (por defecto `true`). Si falla al crearse: `cb(0, nil, {}, 'Failure handling HTTP request')`. |
+| `PerformHttpRequestAwait(url, metodo, datos, cabeceras, opciones)` | Servidor | Versión síncrona: devuelve `status, body, headers, errorData`. |
+| `RegisterNUICallback(nombre, fn)` / `RegisterNuiCallback` | Cliente | Callback de NUI. |
+| `SendNUIMessage(tabla)` | Cliente | Codifica en JSON y llama a `SendNuiMessage`. |
+| `GetPlayerEP` | Servidor | Alias de `GetPlayerEndpoint`. |
+| `RconPrint(texto)` | Servidor | Alias de `Citizen.Trace` (imprime en consola). |
+| `Citizen.Trace(texto)` | Ambos | Imprime sin formato adicional. |
+| `Citizen.GetFunctionReference(fn)` | Ambos | Crea una referencia de función para pasarla a natives/otros recursos. |
+| `Citizen.InvokeNative(hash, ...)` | Ambos | Llama a un native por su hash (9.9.5). |
+| `source` | Ambos | Global con el origen del evento en curso. |
+
+### 9.9.4 Cómo convierte FiveM los natives a funciones Lua
+
+Reglas del generador oficial (`codegen_out_lua.lua`):
+
+1. **Nombre**: se pasa a minúsculas, cada `_letra` se convierte en mayúscula y la primera letra también: `GET_ENTITY_COORDS` → `GetEntityCoords`. Los guiones bajos delante de un número se mantienen: `GET_GROUND_Z_FOR_3D_COORD` → `GetGroundZFor_3dCoord`. Los natives sin nombre se llaman `N_0x...`.
+2. **Parámetros puntero** (`int*`, `float*`, `Vector3*`, `BOOL*`, `Entity*`…): **no se pasan**; sus valores se **devuelven** después del resultado normal:
+
+   ```lua
+   -- C: BOOL GET_GROUND_Z_FOR_3D_COORD(float x, float y, float z, float* groundZ, BOOL includeWater)
+   local encontrado, z = GetGroundZFor_3dCoord(x, y, z, false)
+
+   -- C: void GET_VEHICLE_COLOURS(Vehicle vehicle, int* colorPrimary, int* colorSecondary)
+   local primario, secundario = GetVehicleColours(veh)
+
+   -- C: void GET_LOCAL_TIME(int* year, int* month, int* day, int* hour, int* minute, int* second)
+   local anio, mes, dia, hora, minuto, segundo = GetLocalTime()
+   ```
+
+   **Excepción**: si el native tiene **un único** puntero y es el **último** parámetro, ese argumento sí aparece en la firma, pero es opcional (puedes omitirlo) y el valor se devuelve igualmente:
+
+   ```lua
+   -- C: BOOL GET_PED_LAST_DAMAGE_BONE(Ped ped, int* outBone)
+   local ok, hueso = GetPedLastDamageBone(ped)
+   ```
+
+3. **Parámetros `Hash`**: si pasas un **string**, se convierte automáticamente con `GetHashKey`. `RequestModel('adder')` funciona igual que ``RequestModel(`adder`)``. Aun así, el *backtick* es más rápido porque se calcula al compilar.
+4. **Parámetros string**: pasar `nil` o `0` envía un puntero nulo.
+5. **Parámetros `func`**: las funciones Lua se convierten solas en referencias de función.
+6. **Parámetros `object`** (tablas): se serializan automáticamente con msgpack.
+7. Los natives se cargan **bajo demanda** (la primera vez que los usas).
+
+### 9.9.5 `Citizen.InvokeNative` (natives por hash)
+
+Útil para natives que todavía no tienen nombre o que tu build no expone con nombre:
+
+```lua
+-- Devuelve un vector3: hay que indicar el tipo de resultado
+local coords = Citizen.InvokeNative(0x3FEF770D40960D5A, PlayerPedId(), true, Citizen.ResultAsVector())
+
+-- Otros indicadores de resultado: Citizen.ResultAsInteger(), Citizen.ResultAsFloat(),
+-- Citizen.ResultAsString(), Citizen.ResultAsLong(), Citizen.ReturnResultAnyway()
+-- Punteros de salida: Citizen.PointerValueInt(), Citizen.PointerValueFloat(), Citizen.PointerValueVector()
+local encontrado, z = Citizen.InvokeNative(0xC906A7DAB05C8D2B, x, y, z, Citizen.PointerValueFloat(), false, Citizen.ReturnResultAnyway())
+```
+
+> Si existe la versión con nombre, úsala: es más legible y FiveM ya gestiona los tipos por ti.
+
+### 9.9.6 Lo que **no** funciona en el Lua de FiveM
+
+| Intento | Por qué falla | Alternativa |
+|---|---|---|
+| `os.*` / `io.*` en el cliente | No existen en el cliente | `GetGameTimer`, `GetLocalTime`, KVP, `LoadResourceFile` |
+| `dofile`, `loadfile` | Eliminados | Añade el archivo a `shared/client/server_scripts`, o `load(LoadResourceFile(...))` |
+| `require 'mi_modulo'` sin ox_lib | El `require` nativo solo carga `glm` y `lmprof` | `@ox_lib/init.lua` + `require`, o tablas globales compartidas |
+| `os.execute`, `io.popen('cualquier cosa')` | Bloqueados | Ninguna desde Lua (por seguridad) |
+| Escribir archivos de **otro** recurso | *Sandbox* | `add_filesystem_permission` en `server.cfg` |
+| `Wait()` fuera de un thread o handler | No hay corrutina que pausar | Envuelve el código en `CreateThread` |
+| Enviar funciones por `TriggerServerEvent`/`TriggerClientEvent` | Los datos se serializan con msgpack | Envía datos; para lógica usa callbacks (8.3) |
+| Enviar *handles* de entidad entre cliente y servidor | Son locales a cada máquina | Envía el **netId** (`NetworkGetNetworkIdFromEntity`) |
+| Aritmética con strings (`"5" + 1`) | Lua 5.4 no convierte | `tonumber("5") + 1` |
+
+> **Funciones de ejemplo**: en esta guía, las funciones con nombre en español como `AbrirTienda`, `DarItem`, `QuitarDinero`, `LogSospechoso` o `GuardarTodosLosJugadores` son **tuyas**: representan tu propia lógica y debes implementarlas. Todo lo demás (natives, funciones del runtime y APIs de librerías) está comprobado contra las fuentes oficiales.
 ---
 
 # 10. JavaScript y TypeScript
@@ -2825,9 +2996,9 @@ end
 ## 13.1 Cómo funciona la sincronización con OneSync
 
 - El servidor mantiene un **árbol de sincronización** (*sync tree*) de cada entidad en red: posición, salud, modelo, estado de puertas, etc.
-- Cada entidad tiene un **owner** (un cliente) que la simula y envía su estado al servidor; el servidor lo reenvía a los clientes que la tienen **en su ámbito** (*scope*), normalmente por distancia (~424 m por defecto para la mayoría de entidades).
+- Cada entidad tiene un **owner** (un cliente) que la simula y envía su estado al servidor; el servidor lo reenvía a los clientes que la tienen **en su ámbito** (*scope*), que depende principalmente de la distancia.
 - Si el owner se aleja o se desconecta, la entidad **migra** a otro cliente cercano (`onesync_forceMigration`).
-- Si no hay ningún jugador cerca de una entidad creada por script en el servidor, ésta **sigue existiendo en el servidor** (se queda "huérfana" hasta que alguien vuelva a acercarse), lo que permite, por ejemplo, vehículos persistentes.
+- **Por defecto el servidor borra las entidades que dejan de ser relevantes para cualquier jugador** (modo *orphan* `DeleteWhenNotRelevant`). Para que una entidad de servidor persista aunque no haya nadie cerca (por ejemplo, vehículos aparcados persistentes) usa `SetEntityOrphanMode(entidad, 2)` (ver abajo).
 - Entidades **fuera de tu ámbito no existen en tu cliente**: `NetToVeh(netId)` devuelve 0 y `GetPlayerFromServerId` devuelve -1. Desde el servidor sí puedes leerlas.
 
 ### Qué puedes hacer en el servidor gracias a OneSync
@@ -2848,13 +3019,19 @@ end
 ### Huérfanos y *culling*
 
 ```lua
--- Qué hacer con una entidad de servidor cuando nadie la "posee"
--- 0 = DeleteWhenNotRelevant (por defecto), 1 = DeleteOnOwnerDisconnect, 2 = KeepEntity
+-- (servidor) Qué hace el servidor con una entidad cuando ya no tiene a su owner original
+-- 0 = DeleteWhenNotRelevant (por defecto): se borra cuando no es relevante para ningún jugador
+-- 1 = DeleteOnOwnerDisconnect: se borra cuando se desconecta su owner original
+-- 2 = KeepEntity: el servidor nunca la borra en sus comprobaciones de relevancia
 SetEntityOrphanMode(veh, 2)
-
--- Radio de sincronización personalizado para una entidad (en metros)
-SetEntityDistanceCullingRadius(veh, 1000.0)
 ```
+
+Según la documentación oficial del native:
+
+- Con `KeepEntity` (2) solo se garantiza que **el servidor** no la borre; un cliente **sí puede** borrarla con `DeleteEntity`.
+- Usado en un tren, se aplica también a todos sus vagones.
+
+> **`SetEntityDistanceCullingRadius`** (cambiar el radio de sincronización de una entidad) existe, pero la propia documentación de Cfx.re lo marca: *"Culling natives are deprecated and have known, unfixable issues"*. **No lo uses** en recursos nuevos.
 
 ## 13.2 Ámbitos (*scopes*)
 
@@ -2984,6 +3161,13 @@ AddStateBagChangeHandler('horaServidor', 'global', function(_, _, value) end)
 ```
 
 Nombres de bag: `global`, `player:<serverId>`, `entity:<netId>`, `localEntity:<handle>`.
+
+Detalles oficiales del handler (documentación del native `ADD_STATE_BAG_CHANGE_HANDLER`):
+
+- Firma: `function(bagName, key, value, reserved, replicated)`; `reserved` no se usa.
+- Cuando se ejecuta el handler, **el bag todavía contiene el valor antiguo**: `value` es el nuevo y puedes leer el anterior con `Entity(ent).state[key]` o `GetStateBagValue(bagName, key)`.
+- El handler **no puede rechazar** el cambio. Para impedir escrituras de clientes usa `sv_stateBagStrictMode` o valida y corrige desde el servidor.
+- En el **servidor** `GetPlayerFromStateBagName` devuelve el `source` del jugador; en el **cliente** devuelve el *player handle* (índice local).
 
 `RemoveStateBagChangeHandler(cookie)` elimina un handler (el `Add...` devuelve el *cookie*).
 
@@ -3230,7 +3414,8 @@ Imágenes de ítems de inventario, por ejemplo: `https://cfx-nui-ox_inventory/we
 
 ## 14.6 Depurar la NUI
 
-- En el cliente, F8 → **`nui_devtools`** abre las DevTools de Chromium para inspeccionar tus páginas (elige el *frame* de tu recurso).
+- **Con el juego abierto**, las herramientas de depuración remota de CEF están en **http://localhost:13172/**: ábrelo desde Chrome/Edge en el mismo PC y elige la página de tu recurso (documentación oficial).
+- También puedes abrirlas con **`nui_devTools`** en la consola F8, pero solo si el **modo desarrollador** está activo.
 - `console.log` dentro de la NUI aparece en las DevTools, **no** en F8.
 - Para desarrollar con *hot-reload*, puedes apuntar `ui_page` a `http://localhost:5173` mientras desarrollas con Vite (y volver a la build final para producción).
 
@@ -3287,7 +3472,7 @@ game 'gta5'
 
 loadscreen 'index.html'
 loadscreen_manual_shutdown 'yes'   -- opcional
-files { 'index.html', 'style.css', 'script.js', 'music.mp3', 'bg.webm' }
+files { 'index.html', 'style.css', 'script.js', 'music.ogg', 'bg.webm' }   -- formatos libres (ver 14.11)
 client_script 'client.lua'
 ```
 
@@ -3312,7 +3497,7 @@ const handlers = {
 window.addEventListener('message', (e) => (handlers[e.data.eventName] || (() => {}))(e.data));
 ```
 
-Dentro de la pantalla de carga también tienes `window.nuiHandoverData` con los datos enviados con `deferrals.handover`.
+Dentro de la pantalla de carga también tienes `window.nuiHandoverData`: el bloque de *handover* de la conexión (ver `deferrals.handover`, 8.14) más `serverAddress` (dirección del servidor).
 
 - El native `SetManualShutdownLoadingScreenNui` está **obsoleto**: usa `loadscreen_manual_shutdown 'yes'` en el manifest.
 - `setr sv_showBusySpinnerOnLoadingScreen false` oculta el icono giratorio de carga.
@@ -3326,8 +3511,17 @@ local dui = CreateDui('https://ejemplo.com', 1280, 720)
 local handle = GetDuiHandle(dui)
 local txd = CreateRuntimeTxd('mi_tv_txd')
 CreateRuntimeTextureFromDuiHandle(txd, 'mi_tv_tex', handle)
+
+-- Opción A: dibujarla en pantalla (cada frame)
+-- DrawSprite('mi_tv_txd', 'mi_tv_tex', 0.5, 0.5, 0.3, 0.3, 0.0, 255, 255, 255, 255)
+
+-- Opción B: sustituir la textura de un modelo del mundo
+-- ⚠️ La documentación oficial marca AddReplaceTexture como "Experimental natives,
+--    please do not use in a live environment".
 AddReplaceTexture('prop_tv_flat_01', 'script_rt_tvscreen', 'mi_tv_txd', 'mi_tv_tex')
--- SetDuiUrl(dui, 'https://otra.com'); SendDuiMessage(dui, json.encode({...})); DestroyDui(dui)
+
+-- Otros: SetDuiUrl(dui, url), SendDuiMessage(dui, json.encode({...})), IsDuiAvailable(dui),
+-- SendDuiMouseMove/Down/Up/Wheel(...), DestroyDui(dui)
 ```
 
 ## 14.10 Rendimiento NUI
@@ -3336,6 +3530,89 @@ AddReplaceTexture('prop_tv_flat_01', 'script_rt_tvscreen', 'mi_tv_txd', 'mi_tv_t
 - Envía mensajes solo cuando cambian los datos, no cada frame (para un HUD de velocidad, 10-20 veces/seg es suficiente).
 - Usa imágenes optimizadas (WebP) y evita fuentes enormes.
 - No cargues frameworks gigantes para una UI simple.
+
+## 14.11 Qué soporta el navegador de FiveM (CEF): referencia verificada
+
+Todo lo de esta sección sale del **código fuente del cliente** (`code/components/nui-core`, `glue/NUIMediaAccess.cpp`, `nui-core/include/EpoxyScript.h`) en la build *latest* 37579 (20/10/2026) y de la documentación oficial de NUI.
+
+### Motor
+
+| Dato | Valor |
+|---|---|
+| Motor | **Chromium Embedded Framework** (fork `citizenfx/cef`). |
+| Versión | **CEF 144.19.61 / Chromium 144.0.7559** (`cef_binary_144.19.61-cfx-m144-osr`) en el código actual. Builds de servidor/cliente anteriores pueden traer un Chromium más antiguo. |
+| Renderizado | Fuera de pantalla (*OSR*), compuesto encima del juego. Aceleración por GPU (`enable-gpu-rasterization`, `ignore-gpu-blocklist`), ANGLE sobre **Direct3D 11**. |
+| WebGL | Soportado y acelerado (la documentación oficial menciona *"accelerated WebGL"*). El propio FiveM usa **WebGL2**. |
+| Codificación por defecto | UTF-8. |
+| Cada recurso | Es un **iframe a pantalla completa**: no hay *click-through* entre recursos y el foco funciona como una **pila**: el último recurso que pidió `SetNuiFocus` queda encima. |
+
+### Funciones que FiveM activa o fuerza
+
+| Función | Estado |
+|---|---|
+| Reproducción automática de audio y vídeo | ✅ **Sin necesidad de gesto del usuario** (`autoplay-policy=no-user-gesture-required`): `audio.play()` funciona directamente. |
+| `localStorage` | ✅ Persiste entre sesiones del juego (FiveM desactiva `ThirdPartyStoragePartitioning` precisamente para no perder el `localStorage` de las NUI). El origen es `https://cfx-nui-<recurso>`, así que cada recurso tiene su propio almacenamiento. |
+| Contexto seguro (HTTPS) | ✅ Para archivos del recurso usa `https://cfx-nui-<recurso>/...`. `nui://` ya **no** es contexto seguro. |
+| Micrófono y cámara (`getUserMedia`) | ✅ **Con permiso del jugador**: aparece un aviso y la decisión se guarda **por servidor y recurso**. Si el jugador no está conectado a un servidor, se permite sin preguntar. |
+| Captura de escritorio / pantalla (`getDisplayMedia`) | ❌ **Siempre bloqueada** ("se ha demostrado que se abusa de ella"). |
+| `ui_page` externa | ✅ Se permite una URL `https://...` como `ui_page` (documentación oficial). |
+| CORS | No se aplica actualmente: FiveM arranca CEF con `disable-web-security`. El propio código lo marca como **pendiente de quitar** (*"TODO: remove this flag in the future"*), así que **no dependas de ello**: haz que tus APIs externas envíen cabeceras CORS correctas. |
+
+### Funciones desactivadas a propósito (no las uses)
+
+Según los *flags* que FiveM pasa a Chromium:
+
+- **APIs de hardware**: WebUSB, WebBluetooth, WebHID y Web Serial.
+- **Presentation API / Media Router** (enviar a TV), *Document Picture-in-Picture*.
+- **Impresión** (*PrintCompositor*), **autocompletado** y monedero, **corrector ortográfico** (API, servicio y sugerencias), autocorrector, **Live Caption**.
+- **Compute Pressure** (`PressureObserver`).
+- **Teclas multimedia del teclado** (para que la NUI no se las robe a otros programas).
+- **Zoom con gesto de pellizco** en el *trackpad*.
+- **Extensiones**, sincronización, inicio de sesión de Google.
+- **Decodificación y codificación de vídeo por hardware**: el vídeo se decodifica por **software**, así que un vídeo 4K a pantalla completa consume CPU.
+- En Chromium 144, FiveM desactiva además dos funciones experimentales de Blink que estaban rotas: tamaños `width`/`height` como atributos en SVG anidados y una que podía colgar la interfaz.
+
+### Formatos de audio y vídeo
+
+- El staff de Cfx.re ha indicado en el foro que los **códecs propietarios (H.264 / MP4, AAC)** no están soportados en la NUI.
+- **Usa formatos libres**: vídeo **WebM** (VP8/VP9/AV1) y audio **Ogg** (Opus/Vorbis) o WebM/Opus.
+- Si un vídeo o audio no se reproduce, conviértelo, por ejemplo con `ffmpeg -i in.mp4 -c:v libvpx-vp9 -b:v 2M -c:a libopus out.webm`.
+
+### Globales que FiveM inyecta en tus páginas NUI
+
+| Global | Qué es |
+|---|---|
+| `GetParentResourceName()` | Nombre de tu recurso (para `fetch('https://' + GetParentResourceName() + '/callback')`). |
+| `window.nuiTargetGame` | `'gta5'` en FiveM (`'rdr3'` en RedM). Útil para recursos compartidos. |
+| `window.nuiSystemLanguages` | Array con los idiomas del sistema Windows del jugador (p. ej. `['es-ES', 'en-US']`). Útil para elegir idioma por defecto. |
+| `window.nuiHandoverData` | **Solo en la pantalla de carga**: datos de `deferrals.handover` más `serverAddress`. |
+| `window.invokeNative('openUrl', url)` | Abre una URL `http(s)` en el navegador del jugador. Si el dominio no es de confianza para FiveM, **el jugador ve una confirmación** antes. |
+| `CfxGameViewRenderer` | Clase para dibujar **la imagen del juego** dentro de un `<canvas>` con WebGL2 (cámaras de móvil, monitores de seguridad…). |
+| `<object type="application/x-cfx-game-view">` | Forma antigua de lo mismo: FiveM la sustituye automáticamente por un `<canvas>` con la vista del juego. |
+
+Ejemplo de vista del juego en la NUI:
+
+```html
+<canvas id="vista" style="width: 480px; height: 270px"></canvas>
+<script>
+  const canvas = document.getElementById('vista');
+  const renderer = new CfxGameViewRenderer(canvas);   // inyectado por FiveM
+  new ResizeObserver(() => renderer.resize(canvas.clientWidth, canvas.clientHeight)).observe(canvas);
+  // renderer.destroy() al cerrar
+</script>
+```
+
+### Depuración
+
+- DevTools remotas: **http://localhost:13172/** mientras el juego está abierto.
+- Comando F8 `nui_devTools`: requiere el modo desarrollador.
+
+### Buenas prácticas derivadas de lo anterior
+
+- Fondo `transparent` en `html, body`; si no, taparás el juego.
+- Pausa animaciones y vídeos ocultos (autoplay está siempre permitido y la decodificación es por CPU).
+- Guarda preferencias de UI en `localStorage` o en KVP del cliente (desde Lua).
+- Si necesitas micrófono (radio por NUI, notas de voz), explica al jugador por qué aparece el permiso.
 
 ---
 
@@ -4116,6 +4393,489 @@ if IsDuplicityVersion() then
 end
 ```
 
+## 17.6 Crear tu propio framework
+
+Si no quieres depender de ESX, QBCore o Qbox, puedes hacer tu propio núcleo. Esta sección explica **qué debe hacer un framework**, el **contrato de comportamiento** que deberían poder dar por hecho el resto de recursos y un **núcleo mínimo completo** (`mi_core`) que funciona tal cual: sus natives y funciones están comprobados contra la base de datos oficial y el runtime de FiveM.
+
+### 17.6.1 Responsabilidades de un framework
+
+| Área | Qué resuelve |
+|---|---|
+| **Ciclo de vida del jugador** | Conexión (validación/bans), carga de datos, jugador "listo", guardado y desconexión. |
+| **Identidad** | Elegir el identificador persistente (`license:`) y, si hay varios personajes, el id de personaje. |
+| **Persistencia** | Base de datos, caché en memoria y guardado periódico y al salir. |
+| **Economía** | Cuentas (efectivo, banco…) con el servidor como **única autoridad**. |
+| **Trabajos y grupos** | Trabajo, rango y permisos (integrados con ACE). |
+| **API pública** | *Exports* y eventos estables y documentados para otros recursos. |
+| **Sincronización con el cliente** | Datos privados solo a su dueño; datos públicos mediante state bags. |
+| **Utilidades** | Callbacks, ítems usables, notificaciones, comandos, locales. |
+
+### 17.6.2 Contrato de comportamiento (lo que otros recursos esperan)
+
+Si publicas un framework, **documenta y cumple** estas garantías:
+
+1. **El servidor es la única fuente de verdad.** Ningún dato de dinero, trabajo o inventario se acepta desde el cliente.
+2. **Evento de jugador cargado, una sola vez por sesión**: en servidor (local) `mi_core:playerLoaded(src, datos)` y en el cliente `mi_core:client:playerLoaded(datos)`. Ningún otro recurso debería pedir datos antes de ese evento.
+3. **Evento de salida**: `mi_core:playerDropped(src, datos)` (servidor) **después** de guardar.
+4. **Cada cambio emite un evento**: `mi_core:moneyChanged(src, cuenta, nuevoValor, motivo)`, `mi_core:jobChanged(src, trabajo, anterior)`.
+5. **Las funciones que cambian datos devuelven `true`/`false`** (y nunca dejan valores negativos ni no numéricos).
+6. **Los datos se guardan** al desconectarse, periódicamente, al parar el recurso y cuando txAdmin anuncia reinicio o apagado.
+7. **API por exports**, no por variables globales. Los exports que modifican datos solo existen en el **servidor** (los clientes no pueden llamar a exports del servidor).
+8. **Auditoría**: registra qué recurso cambió el dinero (`GetInvokingResource()`).
+9. **Eventos de red validados** (tipos, rangos, permisos, frecuencia) y con espacio de nombres (`mi_core:server:*`, `mi_core:client:*`).
+10. **Compatibilidad**: si cambias la API, mantén *aliases* o versión mayor (SemVer) y avisa en el *changelog*.
+
+### 17.6.3 Flujo de vida del jugador
+
+```
+playerConnecting (deferrals: license, ban)      ← source TEMPORAL
+        │
+        ▼
+cliente arranca → NetworkIsPlayerActive(PlayerId())
+        │  TriggerServerEvent('mi_core:server:ready')
+        ▼
+servidor: carga de BD → objeto en memoria → state bags públicos
+        │  TriggerEvent('mi_core:playerLoaded', src, datos)              (servidor)
+        │  TriggerClientEvent('mi_core:client:playerLoaded', src, datos)  (solo su cliente)
+        ▼
+juego: cambios vía exports (servidor) → evento + sincronización
+        │
+        ▼
+playerDropped → guardar → TriggerEvent('mi_core:playerDropped', src, datos) → liberar memoria
+```
+
+> `playerConnecting` usa un id **temporal**: no cargues aún el personaje ahí. Cárgalo cuando el cliente avise de que está listo (o en `playerJoining`, que recibe el id definitivo en `source` y el temporal como argumento).
+
+### 17.6.4 Estructura
+
+```
+mi_core/
+├── fxmanifest.lua
+├── config.lua
+├── sql/install.sql
+├── server/
+│   ├── player.lua      ← clase Player (memoria + BD)
+│   ├── main.lua        ← ciclo de vida, guardado, eventos
+│   └── api.lua         ← exports públicos
+└── client/
+    └── main.lua        ← PlayerData local, eventos, export de lectura
+```
+
+### 17.6.5 `fxmanifest.lua`
+
+```lua
+fx_version 'cerulean'
+game 'gta5'
+
+name 'mi_core'
+description 'Framework propio mínimo'
+version '1.0.0'
+
+shared_script 'config.lua'
+server_scripts {
+    '@oxmysql/lib/MySQL.lua',
+    'server/player.lua',
+    'server/main.lua',
+    'server/api.lua',
+}
+client_script 'client/main.lua'
+
+dependencies { 'oxmysql', '/onesync' }
+```
+
+### 17.6.6 `config.lua`
+
+```lua
+Config = {}
+Config.Cuentas = { cash = 500, bank = 2500 }       -- cuentas y saldo inicial
+Config.TrabajoPorDefecto = { name = 'desempleado', grade = 0 }
+Config.Trabajos = {
+    desempleado = { label = 'Desempleado', grados = { [0] = { label = 'Ciudadano', sueldo = 50 } } },
+    policia = { label = 'Policía', grados = {
+        [0] = { label = 'Cadete', sueldo = 300 },
+        [1] = { label = 'Agente', sueldo = 450 },
+        [2] = { label = 'Sargento', sueldo = 600 },
+    } },
+}
+Config.AutoguardadoMinutos = 5
+```
+
+### 17.6.7 `sql/install.sql`
+
+```sql
+CREATE TABLE IF NOT EXISTS `mi_core_jugadores` (
+  `license` VARCHAR(60) NOT NULL,
+  `nombre` VARCHAR(100) NOT NULL,
+  `cuentas` LONGTEXT NOT NULL,
+  `trabajo` VARCHAR(50) NOT NULL DEFAULT 'desempleado',
+  `grado` INT NOT NULL DEFAULT 0,
+  `grupo` VARCHAR(50) NOT NULL DEFAULT 'user',
+  `metadata` LONGTEXT NOT NULL,
+  `ultima_conexion` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`license`)
+) DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `mi_core_bans` (
+  `license` VARCHAR(60) NOT NULL,
+  `motivo` VARCHAR(255) NOT NULL,
+  `fecha` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`license`)
+) DEFAULT CHARSET=utf8mb4;
+```
+
+### 17.6.8 `server/player.lua` (clase Player)
+
+```lua
+-- server
+Jugadores = {}            -- [source] = objeto Player (solo este recurso)
+
+local PlayerClass = {}
+PlayerClass.__index = PlayerClass
+
+local function copiar(t)
+    local r = {}
+    for k, v in pairs(t) do r[k] = type(v) == 'table' and copiar(v) or v end
+    return r
+end
+
+function CrearJugador(src, fila)
+    local self = setmetatable({}, PlayerClass)
+    self.source = src
+    self.license = fila.license
+    self.nombre = fila.nombre
+    self.cuentas = json.decode(fila.cuentas) or copiar(Config.Cuentas)
+    self.trabajo = { name = fila.trabajo, grade = fila.grado }
+    self.grupo = fila.grupo
+    self.metadata = json.decode(fila.metadata) or {}
+    return self
+end
+
+-- Datos que se pueden mandar al cliente o a otros recursos (sin métodos)
+function PlayerClass:datos()
+    return {
+        source = self.source, license = self.license, nombre = self.nombre,
+        cuentas = copiar(self.cuentas), trabajo = copiar(self.trabajo),
+        grupo = self.grupo, metadata = copiar(self.metadata),
+    }
+end
+
+-- Datos públicos visibles para todos los clientes (state bag replicado)
+function PlayerClass:sincronizarPublico()
+    Player(self.source).state:set('trabajo', { name = self.trabajo.name, grade = self.trabajo.grade }, true)
+end
+
+function PlayerClass:getDinero(cuenta)
+    return self.cuentas[cuenta]
+end
+
+function PlayerClass:setDinero(cuenta, cantidad, motivo)
+    if self.cuentas[cuenta] == nil then return false end
+    if type(cantidad) ~= 'number' or cantidad < 0 or cantidad ~= cantidad then return false end -- NaN
+    cantidad = math.floor(cantidad)
+    self.cuentas[cuenta] = cantidad
+    TriggerClientEvent('mi_core:client:moneyChanged', self.source, cuenta, cantidad)
+    TriggerEvent('mi_core:moneyChanged', self.source, cuenta, cantidad, motivo or 'sin motivo')
+    return true
+end
+
+function PlayerClass:addDinero(cuenta, cantidad, motivo)
+    if type(cantidad) ~= 'number' or cantidad <= 0 then return false end
+    local actual = self.cuentas[cuenta]
+    if actual == nil then return false end
+    return self:setDinero(cuenta, actual + cantidad, motivo)
+end
+
+function PlayerClass:quitarDinero(cuenta, cantidad, motivo)
+    if type(cantidad) ~= 'number' or cantidad <= 0 then return false end
+    local actual = self.cuentas[cuenta]
+    if actual == nil or actual < cantidad then return false end
+    return self:setDinero(cuenta, actual - cantidad, motivo)
+end
+
+function PlayerClass:setTrabajo(nombre, grado)
+    local t = Config.Trabajos[nombre]
+    if not t or not t.grados[grado] then return false end
+    local anterior = copiar(self.trabajo)
+    self.trabajo = { name = nombre, grade = grado }
+    self:sincronizarPublico()
+    TriggerClientEvent('mi_core:client:jobChanged', self.source, self.trabajo, anterior)
+    TriggerEvent('mi_core:jobChanged', self.source, self.trabajo, anterior)
+    return true
+end
+
+function PlayerClass:setMeta(clave, valor)
+    self.metadata[clave] = valor
+    TriggerClientEvent('mi_core:client:metaChanged', self.source, clave, valor)
+end
+
+function PlayerClass:getMeta(clave)
+    return self.metadata[clave]
+end
+
+function PlayerClass:guardar()
+    MySQL.update.await(
+        'UPDATE mi_core_jugadores SET nombre = ?, cuentas = ?, trabajo = ?, grado = ?, grupo = ?, metadata = ? WHERE license = ?',
+        { self.nombre, json.encode(self.cuentas), self.trabajo.name, self.trabajo.grade, self.grupo, json.encode(self.metadata), self.license }
+    )
+end
+```
+
+### 17.6.9 `server/main.lua` (ciclo de vida)
+
+```lua
+-- server
+local function cargarFila(license, nombre)
+    local fila = MySQL.single.await('SELECT * FROM mi_core_jugadores WHERE license = ?', { license })
+    if fila then return fila end
+    MySQL.insert.await(
+        'INSERT INTO mi_core_jugadores (license, nombre, cuentas, trabajo, grado, metadata) VALUES (?, ?, ?, ?, ?, ?)',
+        { license, nombre, json.encode(Config.Cuentas), Config.TrabajoPorDefecto.name, Config.TrabajoPorDefecto.grade, '{}' }
+    )
+    return MySQL.single.await('SELECT * FROM mi_core_jugadores WHERE license = ?', { license })
+end
+
+-- 1. Conexión: comprobar licencia y bans (source TEMPORAL)
+AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
+    local src = source
+    deferrals.defer()
+    Wait(0)
+    deferrals.update('Comprobando tu cuenta...')
+
+    local license = GetPlayerIdentifierByType(src, 'license')
+    local ban = license and MySQL.single.await('SELECT motivo FROM mi_core_bans WHERE license = ?', { license })
+
+    Wait(0)
+    if not license then return deferrals.done('No se ha encontrado tu licencia de Rockstar.') end
+    if ban then return deferrals.done('Estás baneado: ' .. ban.motivo) end
+    deferrals.done()
+end)
+
+-- 2. El cliente avisa de que está listo → cargar
+RegisterNetEvent('mi_core:server:ready', function()
+    local src = source
+    if Jugadores[src] then return end                         -- una sola carga por sesión
+
+    local license = GetPlayerIdentifierByType(src, 'license')
+    if not license then return DropPlayer(src, 'Sin licencia') end
+
+    local fila = cargarFila(license, GetPlayerName(src))
+    if not GetPlayerName(src) then return end                 -- se desconectó mientras cargaba
+
+    local jugador = CrearJugador(src, fila)
+    Jugadores[src] = jugador
+    jugador:sincronizarPublico()
+
+    -- Permisos: el grupo del framework se refleja en ACE
+    ExecuteCommand(('add_principal identifier.%s group.%s'):format(license, jugador.grupo))
+
+    local datos = jugador:datos()
+    TriggerEvent('mi_core:playerLoaded', src, datos)
+    TriggerClientEvent('mi_core:client:playerLoaded', src, datos)
+end)
+
+-- 3. Desconexión: guardar y liberar
+AddEventHandler('playerDropped', function(reason)
+    local src = source
+    local jugador = Jugadores[src]
+    if not jugador then return end
+    jugador:guardar()
+    ExecuteCommand(('remove_principal identifier.%s group.%s'):format(jugador.license, jugador.grupo))
+    TriggerEvent('mi_core:playerDropped', src, jugador:datos())
+    Jugadores[src] = nil
+end)
+
+-- 4. Guardado periódico
+local function guardarTodos()
+    for _, jugador in pairs(Jugadores) do jugador:guardar() end
+end
+
+CreateThread(function()
+    while true do
+        Wait(Config.AutoguardadoMinutos * 60000)
+        guardarTodos()
+    end
+end)
+
+-- 5. Guardar al parar el recurso y antes de reinicios/apagados de txAdmin
+AddEventHandler('onResourceStop', function(res)
+    if res == GetCurrentResourceName() then guardarTodos() end
+end)
+AddEventHandler('txAdmin:events:serverShuttingDown', guardarTodos)
+AddEventHandler('txAdmin:events:scheduledRestart', function(data)
+    if data.secondsRemaining <= 60 then guardarTodos() end
+end)
+```
+
+`server.cfg` (permisos que necesita el núcleo para gestionar grupos):
+
+```cfg
+add_ace resource.mi_core command.add_principal allow
+add_ace resource.mi_core command.remove_principal allow
+add_principal group.admin group.user
+add_ace group.admin command allow
+ensure oxmysql
+ensure mi_core
+```
+
+### 17.6.10 `server/api.lua` (exports públicos)
+
+```lua
+-- server
+local function log(accion, src, ...)
+    print(('[mi_core] %s src=%s por=%s %s'):format(accion, src, GetInvokingResource() or GetCurrentResourceName(), table.concat({ ... }, ' ')))
+end
+
+exports('GetPlayerData', function(src)
+    local j = Jugadores[tonumber(src)]
+    return j and j:datos() or nil
+end)
+
+exports('GetMoney', function(src, cuenta)
+    local j = Jugadores[tonumber(src)]
+    return j and j:getDinero(cuenta) or nil
+end)
+
+exports('AddMoney', function(src, cuenta, cantidad, motivo)
+    local j = Jugadores[tonumber(src)]
+    if not j then return false end
+    local ok = j:addDinero(cuenta, cantidad, motivo)
+    if ok then log('AddMoney', src, cuenta, cantidad, motivo or '') end
+    return ok
+end)
+
+exports('RemoveMoney', function(src, cuenta, cantidad, motivo)
+    local j = Jugadores[tonumber(src)]
+    if not j then return false end
+    local ok = j:quitarDinero(cuenta, cantidad, motivo)
+    if ok then log('RemoveMoney', src, cuenta, cantidad, motivo or '') end
+    return ok
+end)
+
+exports('SetJob', function(src, trabajo, grado)
+    local j = Jugadores[tonumber(src)]
+    return j and j:setTrabajo(trabajo, tonumber(grado) or 0) or false
+end)
+
+exports('HasJob', function(src, trabajo, gradoMinimo)
+    local j = Jugadores[tonumber(src)]
+    return j ~= nil and j.trabajo.name == trabajo and j.trabajo.grade >= (gradoMinimo or 0)
+end)
+
+exports('SetMeta', function(src, clave, valor)
+    local j = Jugadores[tonumber(src)]
+    if not j then return false end
+    j:setMeta(clave, valor)
+    return true
+end)
+
+exports('GetPlayers', function()
+    local lista = {}
+    for src, j in pairs(Jugadores) do lista[#lista + 1] = j:datos() end
+    return lista
+end)
+
+-- Ítems usables (los registra cada recurso)
+local Usables = {}
+exports('RegisterUsableItem', function(item, cb)
+    Usables[item] = cb
+end)
+exports('UseItem', function(src, item, ...)
+    local cb = Usables[item]
+    if not cb then return false end
+    cb(src, ...)
+    return true
+end)
+
+-- Comando de administración (restringido por ACE: requiere command.darDinero)
+RegisterCommand('darDinero', function(source, args)
+    local objetivo, cuenta, cantidad = tonumber(args[1]), args[2], tonumber(args[3])
+    local j = objetivo and Jugadores[objetivo]
+    if not j or not cantidad then return print('Uso: darDinero <id> <cash|bank> <cantidad>') end
+    j:addDinero(cuenta, cantidad, 'comando admin')
+end, true)
+```
+
+> **Sobre los exports**: los argumentos y valores de retorno se **serializan** entre recursos. Una tabla con metatabla (el objeto `Player`) llegaría al otro recurso **sin sus métodos**. Por eso la API expone **funciones** (`AddMoney`, `SetJob`…) y devuelve **copias de datos** (`GetPlayerData`), no el objeto interno.
+
+### 17.6.11 `client/main.lua`
+
+```lua
+-- client
+PlayerData = {}
+local cargado = false
+
+-- Avisar al servidor cuando la sesión de red está activa (una sola vez)
+CreateThread(function()
+    while not NetworkIsPlayerActive(PlayerId()) do Wait(250) end
+    TriggerServerEvent('mi_core:server:ready')
+end)
+
+RegisterNetEvent('mi_core:client:playerLoaded', function(datos)
+    PlayerData = datos
+    cargado = true
+    TriggerEvent('mi_core:client:onLoaded', datos)        -- para otros recursos del cliente
+end)
+
+RegisterNetEvent('mi_core:client:moneyChanged', function(cuenta, valor)
+    if PlayerData.cuentas then PlayerData.cuentas[cuenta] = valor end
+end)
+
+RegisterNetEvent('mi_core:client:jobChanged', function(trabajo, anterior)
+    PlayerData.trabajo = trabajo
+end)
+
+RegisterNetEvent('mi_core:client:metaChanged', function(clave, valor)
+    if PlayerData.metadata then PlayerData.metadata[clave] = valor end
+end)
+
+-- API de solo lectura para otros recursos del cliente
+exports('GetPlayerData', function() return PlayerData end)
+exports('IsLoaded', function() return cargado end)
+
+-- Ver el trabajo de OTROS jugadores (state bag público)
+AddStateBagChangeHandler('trabajo', nil, function(bagName, key, value)
+    local ply = GetPlayerFromStateBagName(bagName)       -- en el cliente: player handle
+    if ply == 0 then return end
+    -- p. ej. mostrar placa de policía sobre su cabeza si value.name == 'policia'
+end)
+```
+
+### 17.6.12 Cómo lo usa otro recurso
+
+```lua
+-- server de otro recurso
+AddEventHandler('mi_core:playerLoaded', function(src, datos)
+    print(('%s ha cargado con %d$ en el banco'):format(datos.nombre, datos.cuentas.bank))
+end)
+
+RegisterNetEvent('mi_trabajo:server:cobrar', function()
+    local src = source
+    if not exports.mi_core:HasJob(src, 'policia') then return end
+    exports.mi_core:AddMoney(src, 'bank', 300, 'sueldo policía')
+end)
+
+exports.mi_core:RegisterUsableItem('agua', function(src)
+    exports.mi_core:SetMeta(src, 'sed', 100)
+end)
+```
+
+```lua
+-- client de otro recurso
+AddEventHandler('mi_core:client:onLoaded', function(datos)
+    print('Mi trabajo: ' .. datos.trabajo.name)
+end)
+local datos = exports.mi_core:GetPlayerData()
+```
+
+### 17.6.13 Siguientes pasos para un framework completo
+
+- **Multipersonaje**: tabla `personajes` con `license` + `id_personaje`; selección en una NUI antes de `playerLoaded`.
+- **Inventario**: integrar `ox_inventory` (bridge propio) o crear uno con slots y peso.
+- **Callbacks**: `lib.callback` de ox_lib (17.1) o la implementación propia de 8.3.
+- **Sueldos**: un thread que pague a todos cada X minutos según `Config.Trabajos[...].grados[...].sueldo`.
+- **Compatibilidad**: con `provide 'es_extended'`/`provide 'qb-core'` y un *bridge* podrías hacer que funcionen scripts de otros frameworks, pero tendrías que implementar **toda** la API que esos scripts usan.
+- **Tests**: un servidor de desarrollo con 2-3 clientes, probando desconexiones durante la carga, reinicios del recurso y valores extremos.
+
 ---
 
 # 18. Voz: pma-voice y Mumble
@@ -4417,7 +5177,7 @@ end)
 ## 20.4 Población y entidades
 
 - La población (tráfico, peatones) consume CPU de los clientes y ancho de banda. Reduce densidad con los multiplicadores *ThisFrame* (12.12) o desactiva con `onesync_population false`/buckets sin población.
-- `SetEntityDistanceCullingRadius` solo cuando haga falta (aumenta el tráfico de red).
+- Evita `SetEntityDistanceCullingRadius`: Cfx.re marca los natives de *culling* como obsoletos y con problemas conocidos sin solución.
 - Borra entidades de script cuando ya no se usen (`DeleteEntity` en servidor).
 
 ## 20.5 Streaming
@@ -4488,10 +5248,15 @@ print(json.encode(tabla, { indent = true }))
 -- o con ox_lib
 lib.print.info(tabla)
 
--- Medir cuánto tarda algo
-local t = os.clock()
+-- Medir cuánto tarda algo (SERVIDOR: la librería os solo existe en el servidor)
+local t = os.nanotime()
+HacerAlgoPesado()          -- tu función
+print(('Tardó %.3f ms'):format((os.nanotime() - t) / 1e6))
+
+-- Medir en el CLIENTE (resolución de milisegundos)
+local t0 = GetGameTimer()
 HacerAlgoPesado()
-print(('Tardó %.3f ms'):format((os.clock() - t) * 1000))
+print(('Tardó %d ms'):format(GetGameTimer() - t0))
 ```
 
 - Reinicia solo tu recurso con `ensure mi_recurso` (no hace falta reiniciar el servidor).
@@ -5376,10 +6141,951 @@ Es por la actualización de seguridad de cuentas del 24/06/2026. Pueden volver a
 
 ---
 
-# 32. Historial de este documento
+# 32. Apéndice A: todos los natives propios de FiveM (CFX)
+
+Lista **completa** de los natives que añade FiveM (categoría `CFX`), generada automáticamente desde la base de datos oficial (`runtime.fivem.net/doc/natives_cfx.json`) el 20/10/2026 y filtrada para GTA V. Está separada por dónde se pueden usar.
+
+- **Nombre (Lua)**: tal y como lo llamas en Lua/JS (se aplican las reglas de 9.9.4).
+- **Argumentos**: los que pasas. Los parámetros puntero ya no aparecen (se devuelven).
+- **Devuelve**: el tipo del resultado y, después, los valores de los punteros.
+- **Descripción**: primera frase de la descripción oficial, en inglés. Las entradas marcadas ⚠️ OBSOLETO son las que la propia documentación da por obsoletas.
+
+Los natives del **juego** (GTA V, más de 6.000: `PLAYER`, `PED`, `VEHICLE`…) están en https://docs.fivem.net/natives/. Todos los que aparecen en los ejemplos de esta guía se han comprobado contra esa base de datos (nombre y número de argumentos).
+
+### A.1 Compartidos (cliente y servidor) — 74 natives
+
+| Native (Lua) | Argumentos | Devuelve | Descripción oficial (resumen) |
+|---|---|---|---|
+| `AddConvarChangeListener` | conVarFilter, handler | int | Adds a listener for Console Variable changes. |
+| `AddStateBagChangeHandler` | keyFilter, bagFilter, handler | int | Adds a handler for changes to a state bag. |
+| `CancelEvent` | — | — | Cancels the currently executing event. |
+| `DeleteFunctionReference` | referenceIdentity | — |  |
+| `DeleteResourceKvp` | key | — |  |
+| `DeleteResourceKvpNoSync` | key | — | Nonsynchronous DELETE_RESOURCE_KVP operation; see FLUSH_RESOURCE_KVP. |
+| `DoesTrainStopAtStations` | train | BOOL |  |
+| `DuplicateFunctionReference` | referenceIdentity | char* |  |
+| `EndFindKvp` | handle | — |  |
+| `EnsureEntityStateBag` | entity | — | Internal function for ensuring an entity has a state bag. |
+| `ExecuteCommand` | commandString | — | Depending on your use case you may need to use add_acl resource.your_resource_name command.c… |
+| `FindKvp` | handle | char* |  |
+| `FormatStackTrace` | traceData | char* | An internal function for converting a stack trace object to a string. |
+| `GetConvar` | varName, default_ | char* | Can be used to get a console variable of type char, for example a string. |
+| `GetConvarBool` | varName, defaultValue | BOOL | Can be used to get a console variable casted back to bool. |
+| `GetConvarFloat` | varName, defaultValue | float | This will have floating point inaccuracy. |
+| `GetConvarInt` | varName, default_ | int | Can be used to get a console variable casted back to int (an integer value). |
+| `GetCurrentResourceName` | — | char* | Returns the name of the currently executing resource. |
+| `GetEntitiesInRadius` | x, y, z, radius, entityType, sortByDistance, models | object | Supported types \[1] : Peds (including animals) and players. |
+| `GetEntityFromStateBagName` | bagName | Entity | Returns the entity handle for the specified state bag name. |
+| `GetGameBuildNumber` | — | int | Returns the internal build number of the current game being executed. |
+| `GetGameName` | — | char* | Returns the current game being executed. |
+| `GetGamePool` | poolName | object | Returns a list of entity handles (script GUID) for all entities in the specified pool - the… |
+| `GetInstanceId` | — | int |  |
+| `GetInvokingResource` | — | char* |  |
+| `GetNumResourceMetadata` | resourceName, metadataKey | int | Gets the amount of metadata values with the specified key existing in the specified resource… |
+| `GetNumResources` | — | int |  |
+| `GetPlayerFromStateBagName` | bagName | int | On the server this will return the players source, on the client it will return the player h… |
+| `GetPlayerMeleeWeaponDamageModifier` | playerId | float | A getter for SET_PLAYER_MELEE_WEAPON_DAMAGE_MODIFIER. |
+| `GetPlayerWeaponDamageModifier` | playerId | float | A getter for SET_PLAYER_WEAPON_DAMAGE_MODIFIER. |
+| `GetPlayerWeaponDefenseModifier` | playerId | float | A getter for SET_PLAYER_WEAPON_DEFENSE_MODIFIER. |
+| `GetPlayerWeaponDefenseModifier_2` | playerId | float | A getter for \_SET_PLAYER_WEAPON_DEFENSE_MODIFIER\_2. |
+| `GetRegisteredCommands` | — | object | Returns all commands that are registered in the command system. |
+| `GetResourceByFindIndex` | findIndex | char* |  |
+| `GetResourceCommands` | resource | object | Returns all commands registered by the specified resource. |
+| `GetResourceKvpFloat` | key | float | A getter for SET_RESOURCE_KVP_FLOAT. |
+| `GetResourceKvpInt` | key | int | A getter for SET_RESOURCE_KVP_INT. |
+| `GetResourceKvpString` | key | char* | A getter for SET_RESOURCE_KVP. |
+| `GetResourceMetadata` | resourceName, metadataKey, index | char* | Gets the metadata value at a specified key/index from a resource's manifest. |
+| `GetResourceState` | resourceName | char* | Returns the current state of the specified resource. |
+| `GetStateBagKeys` | bagName | object |  |
+| `GetStateBagValue` | bagName, key | object | Returns the value of a state bag key. |
+| `GetTrainCruiseSpeed` | train | float | Gets the trains desired speed. |
+| `GetTrainDirection` | train | BOOL | Gets the direction the train is facing |
+| `GetTrainState` | train | int |  |
+| `GetTrainTrackIndex` | train | int |  |
+| `GetVehicleHandbrake` | vehicle | BOOL |  |
+| `GetVehicleSteeringAngle` | vehicle | float |  |
+| `GetVehicleType` | vehicle | char* | Returns the type of the passed vehicle. |
+| `IsAceAllowed` | object | BOOL |  |
+| `IsDuplicityVersion` | — | BOOL | Gets whether or not this is the CitizenFX server. |
+| `IsEntityPositionFrozen` | entity | bool | A getter for FREEZE_ENTITY_POSITION. |
+| `IsPrincipalAceAllowed` | principal, object | BOOL |  |
+| `IsVehicleEngineStarting` | vehicle | BOOL |  |
+| `LoadResourceFile` | resourceName, fileName | char* | Reads the contents of a text file in a specified resource. |
+| `NetworkGetEntityOwner` | entity | int | Returns the owner ID of the specified entity. |
+| `ProfilerEnterScope` | scopeName | — | Scope entry for profiler. |
+| `ProfilerExitScope` | — | — | Scope exit for profiler. |
+| `ProfilerIsRecording` | — | BOOL | Returns true if the profiler is active. |
+| `RegisterCommand` | commandName, handler, restricted | — | Registered commands can be executed by entering them in the client console (this works for c… |
+| `RegisterResourceAsEventHandler` | eventName | — | An internal function which allows the current resource's HLL script runtimes to receive stat… |
+| `RemoveConvarChangeListener` | cookie | — |  |
+| `RemoveStateBagChangeHandler` | cookie | — | Experimental: This native may be altered or removed in future versions of CitizenFX without… |
+| `SetResourceKvp` | key, value | — | A setter for GET_RESOURCE_KVP_STRING. |
+| `SetResourceKvpFloat` | key, value | — | A setter for GET_RESOURCE_KVP_FLOAT. |
+| `SetResourceKvpFloatNoSync` | key, value | — | Nonsynchronous SET_RESOURCE_KVP_FLOAT operation; see FLUSH_RESOURCE_KVP. |
+| `SetResourceKvpInt` | key, value | — | A setter for GET_RESOURCE_KVP_INT. |
+| `SetResourceKvpIntNoSync` | key, value | — | Nonsynchronous SET_RESOURCE_KVP_INT operation; see FLUSH_RESOURCE_KVP. |
+| `SetResourceKvpNoSync` | key, value | — | Nonsynchronous SET_RESOURCE_KVP operation; see FLUSH_RESOURCE_KVP. |
+| `SetStateBagValue` | bagName, keyName, valueData, valueLength, replicated | — | Internal function for setting a state bag value. |
+| `StartFindKvp` | prefix | int |  |
+| `StateBagHasKey` | bagName, key | bool |  |
+| `TriggerEventInternal` | eventName, eventPayload, payloadLength | — | The backing function for TriggerEvent. |
+| `WasEventCanceled` | — | BOOL | Returns whether or not the currently executing event was canceled. |
+
+### A.2 Solo servidor — 284 natives
+
+| Native (Lua) | Argumentos | Devuelve | Descripción oficial (resumen) |
+|---|---|---|---|
+| `AddBlipForArea` | x, y, z, width, height | Blip | Adds a rectangular blip for the specified coordinates/area. |
+| `AddBlipForCoord` | x, y, z | Blip | Creates a blip for the specified coordinates. |
+| `AddBlipForEntity` | entity | Blip | Create a blip that by default is red (enemy), you can use SET_BLIP_AS_FRIENDLY to make it bl… |
+| `AddBlipForRadius` | posX, posY, posZ, radius | Blip | Create a blip with a radius for the specified coordinates (it doesnt create the blip sprite,… |
+| `AddPedDecorationFromHashes` | ped, collection, overlay | — | This is the server-side RPC native equivalent of the client native ADD_PED_DECORATION_FROM_H… |
+| `ApplyForceToEntity` | entity, forceType, x, y, z, offX, offY, offZ, nComponent, bLocalForce, bLocalOffset, bScaleByMass, bPlayAudio, bScaleByTimeWarp | — | This is the server-side RPC native equivalent of the client native APPLY_FORCE_TO_ENTITY. |
+| `CanPlayerStartCommerceSession` | playerSrc | BOOL | ⚠️ OBSOLETO. This native is deprecated and may be removed in a future version. |
+| `ClearPedProp` | ped, propId | — | CLEAR_PED_PROP This is the server-side RPC native equivalent of the client native CLEAR_PED_… |
+| `ClearPedSecondaryTask` | ped | — | CLEAR_PED_SECONDARY_TASK This is the server-side RPC native equivalent of the client native… |
+| `ClearPedTasks` | ped | — | Clear a ped's tasks. |
+| `ClearPedTasksImmediately` | ped | — | Immediately stops the pedestrian from whatever it's doing. |
+| `ClearPlayerWantedLevel` | player | — | This is the server-side RPC native equivalent of the client native CLEAR_PLAYER_WANTED_LEVEL. |
+| `CreateObject` | modelHash, x, y, z, isNetwork, netMissionEntity, doorFlag | Entity | Creates an object (prop) with the specified model at the specified position, offset on the Z… |
+| `CreateObjectNoOffset` | modelHash, x, y, z, isNetwork, netMissionEntity, doorFlag | Entity | Creates an object (prop) with the specified model centered at the specified position. |
+| `CreatePed` | pedType, modelHash, x, y, z, heading, isNetwork, bScriptHostPed | Entity | Creates a ped (biped character, pedestrian, actor) with the specified model at the specified… |
+| `CreatePedInsideVehicle` | vehicle, pedType, modelHash, seat, isNetwork, bScriptHostPed | Entity | CREATE_PED_INSIDE_VEHICLE This is the server-side RPC native equivalent of the client native… |
+| `CreateVehicle` | modelHash, x, y, z, heading, isNetwork, netMissionEntity | Entity | Creates a vehicle with the specified model at the specified position. |
+| `CreateVehicleServerSetter` | modelHash, type, x, y, z, heading | Vehicle | Equivalent to CREATE_VEHICLE, but it uses 'server setter' logic (like the former CREATE_AUTO… |
+| `DeleteEntity` | entity | — | Deletes the specified entity. |
+| `DeleteTrain` | entity | — | Deletes the specified entity and any carriage its attached to, or that is attached to it. |
+| `DoesBoatSinkWhenWrecked` | vehicle | bool |  |
+| `DoesEntityExist` | entity | BOOL |  |
+| `DoesPlayerExist` | playerSrc | BOOL | Returns whether or not the player exists |
+| `DoesPlayerOwnSku` | playerSrc, skuId | BOOL | ⚠️ OBSOLETO. This native is deprecated and may be removed in a future version. |
+| `DoesPlayerOwnSkuExt` | playerSrc, skuId | BOOL | Requests whether or not the player owns the specified package. |
+| `DropPlayer` | playerSrc, reason | — |  |
+| `EnableEnhancedHostSupport` | enabled | — |  |
+| `FlagServerAsPrivate` | private_ | — |  |
+| `FlushResourceKvp` | — | — | Nonsynchronous operations will not wait for a disk/filesystem flush before returning from a… |
+| `FreezeEntityPosition` | entity, toggle | — | Freezes or unfreezes an entity preventing its coordinates to change by the player if set to… |
+| `GetAirDragMultiplierForPlayersVehicle` | playerSrc | float |  |
+| `GetAllObjects` | — | object | Returns all object handles known to the server. |
+| `GetAllPeds` | — | object | Returns all peds handles known to the server. |
+| `GetAllVehicles` | — | object | Returns all vehicle handles known to the server. |
+| `GetConsoleBuffer` | — | char* | Returns the current console output buffer. |
+| `GetCurrentPedWeapon` | ped | Hash | Returns the hash of weapon the Ped is currently using. |
+| `GetEntityAttachedTo` | entity | Entity | Gets the entity that this entity is attached to. |
+| `GetEntityCollisionDisabled` | entity | bool |  |
+| `GetEntityCoords` | entity | Vector3 | Gets the current coordinates for a specified entity. |
+| `GetEntityHeading` | entity | float |  |
+| `GetEntityHealth` | entity | int | Only works for vehicle and peds |
+| `GetEntityMaxHealth` | entity | int | Currently it only works with peds. |
+| `GetEntityModel` | entity | Hash |  |
+| `GetEntityOrphanMode` | entity | int |  |
+| `GetEntityPopulationType` | entity | int | This native gets an entity's population type. |
+| `GetEntityRemoteSyncedScenesAllowed` | entity | BOOL |  |
+| `GetEntityRotation` | entity | Vector3 |  |
+| `GetEntityRotationVelocity` | entity | Vector3 |  |
+| `GetEntityRoutingBucket` | entity | int | Gets the routing bucket for the specified entity. |
+| `GetEntityScript` | entity | char* |  |
+| `GetEntitySpeed` | entity | float | Gets the current speed of the entity in meters per second. |
+| `GetEntityType` | entity | int | Gets the entity type (as an integer), which can be one of the following defined down below:… |
+| `GetEntityVelocity` | entity | Vector3 |  |
+| `GetGameTimer` | — | long | Gets the current game timer in milliseconds. |
+| `GetHashKey` | model | Hash | This native converts the passed string to a hash. |
+| `GetHeliBodyHealth` | heli | int | Note This native will always return 1000.0 unless SET_VEHICLE_BODY_HEALTH, SET_VEHICLE_ENGIN… |
+| `GetHeliDisableExplodeFromBodyDamage` | heli | BOOL | This is a getter for SET_DISABLE_HELI_EXPLODE_FROM_BODY_DAMAGE |
+| `GetHeliEngineHealth` | heli | int | Note This native will always return 1000.0 unless SET_VEHICLE_BODY_HEALTH, SET_VEHICLE_ENGIN… |
+| `GetHeliGasTankHealth` | heli | int | Note This native will always return 1000.0 unless SET_VEHICLE_BODY_HEALTH, SET_VEHICLE_ENGIN… |
+| `GetHeliMainRotorDamageScale` | heli | float |  |
+| `GetHeliMainRotorHealth` | vehicle | float |  |
+| `GetHeliPitchControl` | heli | float |  |
+| `GetHeliRearRotorDamageScale` | heli | float |  |
+| `GetHeliRearRotorHealth` | vehicle | float | This native is a getter for SET_HELI_TAIL_ROTOR_HEALTH |
+| `GetHeliRollControl` | heli | float |  |
+| `GetHeliTailRotorDamageScale` | heli | float |  |
+| `GetHeliTailRotorHealth` | vehicle | float | ⚠️ OBSOLETO. Note: This native is deprecated, please use GET_HELI_REAR_ROTOR_HEALTH instead. |
+| `GetHeliThrottleControl` | heli | float |  |
+| `GetHeliYawControl` | heli | float |  |
+| `GetHostId` | — | char* |  |
+| `GetIsHeliEngineRunning` | heli | BOOL |  |
+| `GetIsVehicleEngineRunning` | vehicle | BOOL |  |
+| `GetIsVehiclePrimaryColourCustom` | vehicle | BOOL |  |
+| `GetIsVehicleSecondaryColourCustom` | vehicle | BOOL |  |
+| `GetLandingGearState` | vehicle | int | See the client-side GET_LANDING_GEAR_STATE native for a description of landing gear states. |
+| `GetLastPedInVehicleSeat` | vehicle, seatIndex | Entity |  |
+| `GetNetTypeFromEntity` | entity | int | Gets the specific entity type (as an integer), which can be one of the following defined dow… |
+| `GetNumPlayerIdentifiers` | playerSrc | int |  |
+| `GetNumPlayerIndices` | — | int |  |
+| `GetNumPlayerTokens` | playerSrc | int |  |
+| `GetPasswordHash` | password | char* |  |
+| `GetPedArmour` | ped | int |  |
+| `GetPedCauseOfDeath` | ped | Hash |  |
+| `GetPedDesiredHeading` | ped | float |  |
+| `GetPedInVehicleSeat` | vehicle, seatIndex | Entity |  |
+| `GetPedMaxHealth` | ped | int |  |
+| `GetPedRelationshipGroupHash` | ped | Hash | Gets the current relationship group hash of a ped. |
+| `GetPedScriptTaskCommand` | ped | Hash | Gets the script task command currently assigned to the ped. |
+| `GetPedScriptTaskStage` | ped | int | Gets the stage of the peds scripted task. |
+| `GetPedSourceOfDamage` | ped | Entity | Get the last entity that damaged the ped. |
+| `GetPedSourceOfDeath` | ped | Entity | Get the entity that killed the ped. |
+| `GetPedSpecificTaskType` | ped, index | int | Gets the type of a ped's specific task given an index of the CPedTaskSpecificDataNode nodes. |
+| `GetPedStealthMovement` | ped | bool |  |
+| `GetPlayerCameraRotation` | playerSrc | Vector3 | Gets the current camera rotation for a specified player. |
+| `GetPlayerEndpoint` | playerSrc | char* |  |
+| `GetPlayerFakeWantedLevel` | playerSrc | int | Gets the current fake wanted level for a specified player. |
+| `GetPlayerFocusPos` | playerSrc | Vector3 | Gets the focus position (i.e. |
+| `GetPlayerFromIndex` | index | char* |  |
+| `GetPlayerGuid` | playerSrc | char* |  |
+| `GetPlayerIdentifier` | playerSrc, identiferIndex | char* | To get the number of identifiers, use GET_NUM_PLAYER_IDENTIFIERS To get a specific type of i… |
+| `GetPlayerIdentifierByType` | playerSrc, identifierType | char* | Get an identifier from a player by the type of the identifier. |
+| `GetPlayerInvincible` | playerSrc | BOOL |  |
+| `GetPlayerLastMsg` | playerSrc | int |  |
+| `GetPlayerMaxArmour` | playerSrc | int |  |
+| `GetPlayerMaxHealth` | playerSrc | int |  |
+| `GetPlayerName` | playerSrc | char* |  |
+| `GetPlayerPed` | playerSrc | Entity | Used to get the player's Ped Entity ID when a valid playerSrc is passed. |
+| `GetPlayerPeerStatistics` | playerSrc, peerStatistic | int | These statistics only update once every 10 seconds. |
+| `GetPlayerPing` | playerSrc | int | See GET_PLAYER_PEER_STATISTICS if you want more detailed information, like packet loss, and… |
+| `GetPlayerRoutingBucket` | playerSrc | int | Gets the routing bucket for the specified player. |
+| `GetPlayerTeam` | playerSrc | int |  |
+| `GetPlayerTimeInPursuit` | playerSrc, lastPursuit | int |  |
+| `GetPlayerTimeOnline` | playerSrc | int | Gets the current time online for a specified player. |
+| `GetPlayerToken` | playerSrc, index | char* | Gets a player's token. |
+| `GetPlayerWantedCentrePosition` | playerSrc | Vector3 | Gets the current known coordinates for the specified player from cops perspective. |
+| `GetPlayerWantedLevel` | playerSrc | int |  |
+| `GetResourcePath` | resourceName | char* | Returns the physical on-disk path of the specified resource. |
+| `GetSeatPedIsUsing` | ped | int |  |
+| `GetSelectedPedWeapon` | ped | Hash | An alias of GET_CURRENT_PED_WEAPON. |
+| `GetThrusterSideRcsThrottle` | jetpack | float |  |
+| `GetThrusterThrottle` | jetpack | float |  |
+| `GetTrainBackwardCarriage` | train | int |  |
+| `GetTrainCarriageEngine` | train | int |  |
+| `GetTrainCarriageIndex` | train | int |  |
+| `GetTrainForwardCarriage` | train | int |  |
+| `GetVehicleBodyHealth` | vehicle | float |  |
+| `GetVehicleColours` | vehicle | int colorPrimary, int colorSecondary |  |
+| `GetVehicleCustomPrimaryColour` | vehicle | int r, int g, int b |  |
+| `GetVehicleCustomSecondaryColour` | vehicle | int r, int g, int b |  |
+| `GetVehicleDashboardColour` | vehicle, color | — |  |
+| `GetVehicleDirtLevel` | vehicle | float |  |
+| `GetVehicleDoorLockStatus` | vehicle | int | It should be noted that while the client-side command and its setter distinguish between sta… |
+| `GetVehicleDoorStatus` | vehicle, doorIndex | int | Returns the open position of the specified door on the target vehicle. |
+| `GetVehicleDoorsLockedForPlayer` | vehicle | int | Currently it only works when set to "all players". |
+| `GetVehicleEngineHealth` | vehicle | float |  |
+| `GetVehicleExtraColours` | vehicle | int pearlescentColor, int wheelColor |  |
+| `GetVehicleFlightNozzlePosition` | vehicle | float | Gets the flight nozzel position for the specified vehicle. |
+| `GetVehicleHeadlightsColour` | vehicle | int |  |
+| `GetVehicleHomingLockonState` | vehicle | int | Gets the lock on state for the specified vehicle. |
+| `GetVehicleHornType` | vehicle | Hash | This is a getter for the client-side native START_VEHICLE_HORN, which allows you to return t… |
+| `GetVehicleInteriorColour` | vehicle, color | — |  |
+| `GetVehicleLightsState` | vehicle | BOOL, BOOL lightsOn, BOOL highbeamsOn |  |
+| `GetVehicleLivery` | vehicle | int |  |
+| `GetVehicleLockOnTarget` | vehicle | Vehicle | Gets the vehicle that is locked on to for the specified vehicle. |
+| `GetVehicleNeonColour` | vehicle | int red, int green, int blue | Getter to check the neon colour of a vehicle. |
+| `GetVehicleNeonEnabled` | vehicle, neonIndex | BOOL | Getter to check if one of the neon lights of a vehicle is enabled. |
+| `GetVehicleNumberPlateText` | vehicle | char* |  |
+| `GetVehicleNumberPlateTextIndex` | vehicle | int |  |
+| `GetVehiclePedIsIn` | ped, lastVehicle | Vehicle | Gets the vehicle the specified Ped is/was in depending on bool value. |
+| `GetVehiclePetrolTankHealth` | vehicle | float |  |
+| `GetVehicleRadioStationIndex` | vehicle | int |  |
+| `GetVehicleRoofLivery` | vehicle | int |  |
+| `GetVehicleTotalRepairs` | vehicle | int |  |
+| `GetVehicleTyreSmokeColor` | vehicle | int r, int g, int b |  |
+| `GetVehicleWheelType` | vehicle | int |  |
+| `GetVehicleWindowTint` | vehicle | int |  |
+| `GiveWeaponComponentToPed` | ped, weaponHash, componentHash | — | GIVE_WEAPON_COMPONENT_TO_PED This is the server-side RPC native equivalent of the client nat… |
+| `GiveWeaponToPed` | ped, weaponHash, ammoCount, isHidden, bForceInHand | — | GIVE_WEAPON_TO_PED This is the server-side RPC native equivalent of the client native GIVE_W… |
+| `HasEntityBeenMarkedAsNoLongerNeeded` | vehicle | BOOL |  |
+| `HasVehicleBeenDamagedByBullets` | vehicle | BOOL |  |
+| `HasVehicleBeenOwnedByPlayer` | vehicle | BOOL |  |
+| `IsBoatAnchoredAndFrozen` | vehicle | bool |  |
+| `IsBoatWrecked` | vehicle | bool |  |
+| `IsEntityVisible` | entity | BOOL | This native checks if the given entity is visible. |
+| `IsFlashLightOn` | ped | bool |  |
+| `IsHeliTailBoomBreakable` | heli | BOOL | This is a getter for SET_HELI_TAIL_EXPLODE_THROW_DASHBOARD |
+| `IsHeliTailBoomBroken` | heli | BOOL |  |
+| `IsPedAPlayer` | ped | BOOL | This native checks if the given ped is a player. |
+| `IsPedHandcuffed` | ped | bool |  |
+| `IsPedInAnyVehicle` | ped | BOOL |  |
+| `IsPedInVehicle` | ped, vehicle | BOOL |  |
+| `IsPedRagdoll` | ped | bool |  |
+| `IsPedStrafing` | ped | bool |  |
+| `IsPedUsingActionMode` | ped | bool |  |
+| `IsPlayerAceAllowed` | playerSrc, object | BOOL |  |
+| `IsPlayerCommerceInfoLoaded` | playerSrc | BOOL | ⚠️ OBSOLETO. This native is deprecated and may be removed in a future version. |
+| `IsPlayerCommerceInfoLoadedExt` | playerSrc | BOOL | Requests whether or not the commerce data for the specified player has loaded from Tebex. |
+| `IsPlayerEvadingWantedLevel` | playerSrc | BOOL |  |
+| `IsPlayerInFreeCamMode` | playerSrc | bool |  |
+| `IsPlayerUsingSuperJump` | playerSrc | BOOL |  |
+| `IsTrainCaboose` | train | bool |  |
+| `IsVehicleExtraTurnedOn` | vehicle, extraId | BOOL |  |
+| `IsVehicleSirenOn` | vehicle | BOOL |  |
+| `IsVehicleTyreBurst` | vehicle, wheelID, completely | BOOL |  |
+| `IsVehicleWindowIntact` | vehicle, windowIndex | BOOL | See the client-side IS_VEHICLE_WINDOW_INTACT for a window indexes list. |
+| `LoadPlayerCommerceData` | playerSrc | — | ⚠️ OBSOLETO. This native is deprecated and may be removed in a future version. |
+| `LoadPlayerCommerceDataExt` | playerSrc | — | Requests the commerce data from Tebex for the specified player, including the owned SKUs. |
+| `MumbleCreateChannel` | id | — | Create a permanent voice channel. |
+| `MumbleIsPlayerMuted` | playerSrc | BOOL | Checks if the player is currently muted |
+| `MumbleSetPlayerMuted` | playerSrc, toggle | — | Mutes or unmutes the specified player |
+| `NetworkGetEntityFromNetworkId` | netId | Entity |  |
+| `NetworkGetFirstEntityOwner` | entity | int | Returns the first owner ID of the specified entity. |
+| `NetworkGetNetworkIdFromEntity` | entity | int |  |
+| `NetworkGetVoiceProximityOverrideForPlayer` | playerSrc | Vector3 |  |
+| `PerformHttpRequestInternal` | requestData, requestDataLength | int |  |
+| `PerformHttpRequestInternalEx` | requestData | int |  |
+| `PrintStructuredTrace` | jsonString | — | Prints 'structured trace' data to the server file descriptor 3 channel. |
+| `RegisterConsoleListener` | listener | — | Registers a listener for console output messages. |
+| `RegisterResourceAsset` | resourceName, fileName | char* | Experimental: This native may be altered or removed in future versions of CitizenFX without… |
+| `RegisterResourceBuildTaskFactory` | factoryId, factoryFn | — | Registers a build task factory for resources. |
+| `RemoveAllPedWeapons` | ped, p1 | — | Parameter p1 does not seem to be used or referenced in game binaries.\ Note: When called for… |
+| `RemoveBlip` | blip | — | Removes the blip from your map. |
+| `RemoveWeaponComponentFromPed` | ped, weaponHash, componentHash | — | REMOVE_WEAPON_COMPONENT_FROM_PED This is the server-side RPC native equivalent of the client… |
+| `RemoveWeaponFromPed` | ped, weaponHash | — | This is the server-side RPC native equivalent of the client native REMOVE_WEAPON_FROM_PED. |
+| `RequestPlayerCommerceSession` | playerSrc, skuId | — | ⚠️ OBSOLETO. This native is deprecated and may be removed in a future version. |
+| `SaveResourceFile` | resourceName, fileName, data, dataLength | BOOL | Writes the specified data to a file in the specified resource. |
+| `ScanResourceRoot` | rootPath, callback | — | Scans the resources in the specified resource root. |
+| `ScheduleResourceTick` | resourceName | — | Schedules the specified resource to run a tick as soon as possible, bypassing the server's f… |
+| `SetBlipSprite` | blip, spriteId | — | Sets the displayed sprite for a specific blip. |
+| `SetConvar` | varName, value | — |  |
+| `SetConvarReplicated` | varName, value | — | Used to replicate a server variable onto clients. |
+| `SetConvarServerInfo` | varName, value | — |  |
+| `SetCurrentPedWeapon` | ped, weaponHash, bForceInHand | — | SET_CURRENT_PED_WEAPON This is the server-side RPC native equivalent of the client native SE… |
+| `SetEntityCoords` | entity, xPos, yPos, zPos, alive, deadFlag, ragdollFlag, clearArea | — | Sets the coordinates (world position) for a specified entity, offset by the radius of the en… |
+| `SetEntityDistanceCullingRadius` | entity, radius | — | It overrides the default distance culling radius of an entity. |
+| `SetEntityHeading` | entity, heading | — | Set the heading of an entity in degrees also known as "Yaw". |
+| `SetEntityIgnoreRequestControlFilter` | entity, ignore | — | It allows to flag an entity to ignore the request control filter policy. |
+| `SetEntityOrphanMode` | entity, orphanMode | — | Sets what the server will do when the entity no longer has its original owner. |
+| `SetEntityRemoteSyncedScenesAllowed` | entity, allow | — | Enables or disables the owner check for the specified entity in network-synchronized scenes. |
+| `SetEntityRotation` | entity, pitch, roll, yaw, rotationOrder, bDeadCheck | — | Sets the rotation of a specified entity in the game world. |
+| `SetEntityRoutingBucket` | entity, bucket | — | Sets the routing bucket for the specified entity. |
+| `SetEntityVelocity` | entity, x, y, z | — | This is the server-side RPC native equivalent of the client native SET_ENTITY_VELOCITY. |
+| `SetGameType` | gametypeName | — |  |
+| `SetHttpHandler` | handler | — | Sets the handler for HTTP requests made to the executing resource. |
+| `SetMapName` | mapName | — |  |
+| `SetPedAmmo` | ped, weaponHash, ammo | — | This is the server-side RPC native equivalent of the client native SET_PED_AMMO. |
+| `SetPedArmour` | ped, amount | — | This is the server-side RPC native equivalent of the client native SET_PED_ARMOUR. |
+| `SetPedCanRagdoll` | ped, toggle | — | SET_PED_CAN_RAGDOLL This is the server-side RPC native equivalent of the client native SET_P… |
+| `SetPedComponentVariation` | ped, componentId, drawableId, textureId, paletteId | — | This native is used to set component variation on a ped. |
+| `SetPedConfigFlag` | ped, flagId, value | — | This is the server-side RPC native equivalent of the client native SET_PED_CONFIG_FLAG. |
+| `SetPedDefaultComponentVariation` | ped | — | This is the server-side RPC native equivalent of the client native SET_PED_DEFAULT_COMPONENT… |
+| `SetPedEyeColor` | ped, index | — | Used for freemode (online) characters. |
+| `SetPedFaceFeature` | ped, index, scale | — | Sets the various freemode face features, e.g. |
+| `SetPedHairTint` | ped, colorID, highlightColorID | — | Sets the tint index for the hair on the specified ped. |
+| `SetPedHeadBlendData` | ped, shapeFirstID, shapeSecondID, shapeThirdID, skinFirstID, skinSecondID, skinThirdID, shapeMix, skinMix, thirdMix, isParent | — | For more info and the list of faceIDs please refer to this topic. |
+| `SetPedHeadOverlay` | ped, overlayID, index, opacity | — | Note: You may need to call SetPedHeadBlendData prior to calling this native in order for it… |
+| `SetPedHeadOverlayColor` | ped, overlayID, colorType, colorID, secondColorID | — | Note: You may need to call SetPedHeadBlendData prior to calling this native in order for it… |
+| `SetPedIntoVehicle` | ped, vehicle, seatIndex | — | SET_PED_INTO_VEHICLE This is the server-side RPC native equivalent of the client native SET_… |
+| `SetPedPropIndex` | ped, componentId, drawableId, textureId, attach | — | This native is used to set prop variation on a ped. |
+| `SetPedRandomComponentVariation` | ped, p1 | — | This is the server-side RPC native equivalent of the client native SET_PED_RANDOM_COMPONENT_… |
+| `SetPedRandomProps` | ped | — | SET_PED_RANDOM_PROPS This is the server-side RPC native equivalent of the client native SET_… |
+| `SetPedResetFlag` | ped, flagId, doReset | — | PED::SET_PED_RESET_FLAG(PLAYER::PLAYER_PED_ID(), 240, 1); Known values: This is the server-s… |
+| `SetPedToRagdoll` | ped, minTime, maxTime, ragdollType, bAbortIfInjured, bAbortIfDead, bForceScriptControl | — | p4/p5: Unusued in TU27 Ragdoll Types 0: CTaskNMRelax 1: CTaskNMScriptControl: Hardcoded not… |
+| `SetPedToRagdollWithFall` | ped, minTime, maxTime, nFallType, dirX, dirY, dirZ, fGroundHeight, grab1X, grab1Y, grab1Z, grab2X, grab2Y, grab2Z | — | This is the server-side RPC native equivalent of the client native SET_PED_TO_RAGDOLL_WITH_F… |
+| `SetPlayerControl` | player, bHasControl, flags | — | This is the server-side RPC native equivalent of the client native SET_PLAYER_CONTROL. |
+| `SetPlayerCullingRadius` | playerSrc, radius | — | ⚠️ OBSOLETO. Sets the culling radius for the specified player. |
+| `SetPlayerInvincible` | player, bInvincible | — | Make the player impervious to all forms of damage. |
+| `SetPlayerModel` | player, model | — | Set the model for a specific Player. |
+| `SetPlayerRoutingBucket` | playerSrc, bucket | — | Sets the routing bucket for the specified player. |
+| `SetPlayerWantedLevel` | player, wantedLevel, delayedResponse | — | SET_PLAYER_WANTED_LEVEL This is the server-side RPC native equivalent of the client native S… |
+| `SetRoutingBucketEntityLockdownMode` | bucketId, mode | — | Sets the entity lockdown mode for a specific routing bucket. |
+| `SetRoutingBucketPopulationEnabled` | bucketId, mode | — | Sets whether or not the specified routing bucket has automatically-created population enabled. |
+| `SetVehicleAlarm` | vehicle, state | — | SET_VEHICLE_ALARM This is the server-side RPC native equivalent of the client native SET_VEH… |
+| `SetVehicleBodyHealth` | vehicle, value | — | This is the server-side RPC native equivalent of the client native SET_VEHICLE_BODY_HEALTH. |
+| `SetVehicleColourCombination` | vehicle, colorCombination | — | Sets the selected vehicle's colors to their default value (specific variant specified using… |
+| `SetVehicleColours` | vehicle, colorPrimary, colorSecondary | — | colorPrimary & colorSecondary are the paint indexes for the vehicle. |
+| `SetVehicleCustomPrimaryColour` | vehicle, r, g, b | — | This is the server-side RPC native equivalent of the client native SET_VEHICLE_CUSTOM_PRIMAR… |
+| `SetVehicleCustomSecondaryColour` | vehicle, r, g, b | — | This is the server-side RPC native equivalent of the client native SET_VEHICLE_CUSTOM_SECOND… |
+| `SetVehicleDirtLevel` | vehicle, dirtLevel | — | Sets the dirt level of the passed vehicle. |
+| `SetVehicleDoorBroken` | vehicle, doorIndex, deleteDoor | — | See eDoorId declared in SET_VEHICLE_DOOR_SHUT This is the server-side RPC native equivalent… |
+| `SetVehicleDoorsLocked` | vehicle, doorLockStatus | — | Locks the doors of a specified vehicle to a defined lock state, affecting how players and NP… |
+| `SetVehicleNumberPlateText` | vehicle, plateText | — | SET_VEHICLE_NUMBER_PLATE_TEXT This is the server-side RPC native equivalent of the client na… |
+| `StartResource` | resourceName | BOOL |  |
+| `StopResource` | resourceName | BOOL |  |
+| `TaskCombatPed` | ped, targetPed, p2, p3 | — | This is the server-side RPC native equivalent of the client native TASK_COMBAT_PED. |
+| `TaskDriveBy` | driverPed, targetPed, targetVehicle, targetX, targetY, targetZ, distanceToShoot, pedAccuracy, p8, firingPattern | — | This is the server-side RPC native equivalent of the client native TASK_DRIVE_BY. |
+| `TaskEnterVehicle` | ped, vehicle, timeout, seatIndex, speed, flag, p6 | — | This is the server-side RPC native equivalent of the client native TASK_ENTER_VEHICLE. |
+| `TaskEveryoneLeaveVehicle` | vehicle | — | TASK_EVERYONE_LEAVE_VEHICLE This is the server-side RPC native equivalent of the client nati… |
+| `TaskGoStraightToCoord` | ped, x, y, z, speed, timeout, targetHeading, distanceToSlide | — | TASK_GO_STRAIGHT_TO_COORD This is the server-side RPC native equivalent of the client native… |
+| `TaskGoToCoordAnyMeans` | ped, x, y, z, fMoveBlendRatio, vehicle, bUseLongRangeVehiclePathing, drivingFlags, fMaxRangeToShootTargets | — | Tells a ped to go to a coord by any means. |
+| `TaskGoToEntity` | entity, target, duration, distance, speed, p5, p6 | — | This is the server-side RPC native equivalent of the client native TASK_GO_TO_ENTITY. |
+| `TaskHandsUp` | ped, duration, facingPed, p3, p4 | — | This is the server-side RPC native equivalent of the client native TASK_HANDS_UP. |
+| `TaskLeaveAnyVehicle` | ped, p1, flags | — | Flags are the same flags used in TASK_LEAVE_VEHICLE This is the server-side RPC native equiv… |
+| `TaskLeaveVehicle` | ped, vehicle, flags | — | This is the server-side RPC native equivalent of the client native TASK_LEAVE_VEHICLE. |
+| `TaskPlayAnim` | ped, animDictionary, animationName, blendInSpeed, blendOutSpeed, duration, flag, playbackRate, lockX, lockY, lockZ | — | Animations list This is the server-side RPC native equivalent of the client native TASK_PLAY… |
+| `TaskPlayAnimAdvanced` | ped, animDictionary, animationName, posX, posY, posZ, rotX, rotY, rotZ, blendInSpeed, blendOutSpeed, duration, flag, animTime, p14, p15 | — | Similar in functionality to TASK_PLAY_ANIM, except the position and rotation parameters let… |
+| `TaskReactAndFleePed` | ped, fleeTarget | — | TASK_REACT_AND_FLEE_PED This is the server-side RPC native equivalent of the client native T… |
+| `TaskShootAtCoord` | ped, x, y, z, duration, firingPattern | — | This is the server-side RPC native equivalent of the client native TASK_SHOOT_AT_COORD. |
+| `TaskShootAtEntity` | entity, target, duration, firingPattern | — | This is the server-side RPC native equivalent of the client native TASK_SHOOT_AT_ENTITY. |
+| `TaskWarpPedIntoVehicle` | ped, vehicle, seatIndex | — | Warp a ped into a vehicle. |
+| `TempBanPlayer` | playerSrc, reason | — |  |
+| `TriggerClientEventInternal` | eventName, eventTarget, eventPayload, payloadLength | — | The backing function for TriggerClientEvent. |
+| `TriggerLatentClientEventInternal` | eventName, eventTarget, eventPayload, payloadLength, bps | — | The backing function for TriggerLatentClientEvent. |
+| `VerifyPasswordHash` | password, hash | BOOL |  |
+
+### A.3 Solo cliente (propios de FiveM) — 554 natives
+
+| Native (Lua) | Argumentos | Devuelve | Descripción oficial (resumen) |
+|---|---|---|---|
+| `ActivateTimecycleEditor` | — | — | Activates built-in timecycle editing tool. |
+| `AddAudioSubmixOutput` | submixId, outputSubmixId | — | Adds an output for the specified audio submix. |
+| `AddAuthorizedParachuteModel` | modelNameHash | — | Adds the given model name hash to the list of valid models for the player ped's parachute. |
+| `AddAuthorizedParachutePackModel` | modelNameHash | — | Adds the given model name hash to the list of valid models for the player ped's parachute pack. |
+| `AddHealthConfig` | configName, defaultHealth, defaultArmor, defaultEndurance, fatiguedHealthThreshold, injuredHealthThreshold, dyingHealthThreshold, hurtHealthThreshold, dogTakedownThreshold, writheFromBulletThreshold, meleeCardinalFatalAttack, invincible | — | Adds new health config. |
+| `AddMinimapOverlay` | name | int | Loads a minimap overlay from a GFx file in the current resource. |
+| `AddMinimapOverlayWithDepth` | name, depth | int | Loads a minimap overlay from a GFx file in the current resource. |
+| `AddReplaceTexture` | origTxd, origTxn, newTxd, newTxn | — | Experimental natives, please do not use in a live environment. |
+| `AddTextEntry` | entryKey, entryText | — |  |
+| `AddTextEntryByHash` | entryKey, entryText | — |  |
+| `ApplyWeatherCycles` | numEntries, msPerCycle | BOOL |  |
+| `BreakOffVehicleWheel` | vehicle, wheelIndex, leaveDebrisTrail, deleteWheel, unknownFlag, putOnFire | — | Break off vehicle wheel by index. |
+| `CallMinimapScaleformFunction` | miniMap, fnName | BOOL | This is similar to the PushScaleformMovieFunction natives, except it calls in the TIMELINE o… |
+| `ClearVehicleXenonLightsCustomColor` | vehicle | — | Removes vehicle xenon lights custom RGB color. |
+| `CloneTimecycleModifier` | sourceModifierName, clonedModifierName | int |  |
+| `CommitRuntimeTexture` | tex | — | Commits the backing pixels to the specified runtime texture. |
+| `CreateAudioSubmix` | name | int | Creates an audio submix with the specified name, or gets the existing audio submix by that n… |
+| `CreateDryVolume` | xMin, yMin, zMin, xMax, yMax, zMax | int | Creates a volume where water effects do not apply. |
+| `CreateDui` | url, width, height | long | Creates a DUI browser. |
+| `CreateRuntimeTexture` | txd, txn, width, height | long | Creates a blank runtime texture. |
+| `CreateRuntimeTextureFromDuiHandle` | txd, txn, duiHandle | long | Creates a runtime texture from a DUI handle. |
+| `CreateRuntimeTextureFromImage` | txd, txn, fileName | long | Creates a runtime texture from the specified file in the current resource or a base64 data URL. |
+| `CreateRuntimeTxd` | name | long | Creates a runtime texture dictionary with the specified name. |
+| `CreateTimecycleModifier` | modifierName | int | Create a clean timecycle modifier. |
+| `DestroyDui` | duiObject | — | Destroys a DUI browser. |
+| `DisableEditorRuntime` | — | — | Disables the editor runtime mode, changing game behavior to not track entity metadata. |
+| `DisableIdleCamera` | state | — | Disables the game's afk camera that starts panning around after 30 seconds of inactivity. |
+| `DisableRawKeyThisFrame` | rawKeyIndex | BOOL | Disables the specified rawKeyIndex, making it not trigger the regular IS_RAW_KEY_ natives. |
+| `DisableVehiclePassengerIdleCamera` | state | — | Disables the game's afk camera that starts panning around after 30 seconds of inactivity(Whi… |
+| `DisableWorldhorizonRendering` | state | — | Disables the game's world horizon lods rendering (see farlods.dd). |
+| `DoesTimecycleModifierHasVar` | modifierName, varName | BOOL |  |
+| `DoesVehicleUseFuel` | vehicle | BOOL | Checks whether the vehicle consumes fuel. |
+| `DoorSystemGetActive` | — | object | Returns a list of door system entries: a door system hash (see ADD_DOOR_TO_SYSTEM) and its o… |
+| `DoorSystemGetSize` | — | int |  |
+| `DrawCorona` | posX, posY, posZ, size, alpha, red, green, blue, intensity, zBias, dirX, dirY, dirZ, viewThreshold, innerAngle, outerAngle, flags | — | Allows drawing advanced light effects, known as coronas, which support flares, volumetric li… |
+| `DrawGizmo` | matrixPtr, id | BOOL | Draws a gizmo. |
+| `DrawGlowSphere` | posX, posY, posZ, radius, colorR, colorG, colorB, intensity, invert, marker | — | Draw a glow sphere this frame. |
+| `DrawLight` | — | — | Draw the prepared light. |
+| `DrawLine_2d` | x1, y1, x2, y2, width, r, g, b, a | — | Like DRAW_RECT, but it's a line. |
+| `DrawRectRotated` | x, y, width, height, rotation, r, g, b, a | — | DRAW_RECT, but with a rotation. |
+| `EnableEditorRuntime` | — | — | Enables the editor runtime mode, changing game behavior to track entity metadata. |
+| `EndFindObject` | findHandle | — |  |
+| `EndFindPed` | findHandle | — |  |
+| `EndFindPickup` | findHandle | — |  |
+| `EndFindVehicle` | findHandle | — |  |
+| `EnterCursorMode` | — | — | Enters cursor mode, suppressing mouse movement to the game and displaying a mouse cursor ins… |
+| `ExperimentalLoadCloneCreate` | data, objectId, tree | Entity | This native is not implemented. |
+| `ExperimentalLoadCloneSync` | entity, data | — | This native is not implemented. |
+| `ExperimentalSaveCloneCreate` | entity | char* | This native is not implemented. |
+| `ExperimentalSaveCloneSync` | entity | char* | This native is not implemented. |
+| `FindFirstObject` | outEntity | int |  |
+| `FindFirstPed` | outEntity | int |  |
+| `FindFirstPickup` | outEntity | int |  |
+| `FindFirstVehicle` | outEntity | int |  |
+| `FindNextObject` | findHandle, outEntity | BOOL |  |
+| `FindNextPed` | findHandle, outEntity | BOOL |  |
+| `FindNextPickup` | findHandle, outEntity | BOOL |  |
+| `FindNextVehicle` | findHandle, outEntity | BOOL |  |
+| `ForceSnowPass` | enabled | — | Forces the game snow pass to render. |
+| `GetActivePlayers` | — | object | Returns all player indices for 'active' physical players known to the client. |
+| `GetAllRopes` | — | object | Returns all rope handles. |
+| `GetAllTrackJunctions` | — | object | Returns all track junctions on the client The data returned adheres to the following structure: |
+| `GetAllVehicleModels` | — | object | Returns all registered vehicle model names, including non-dlc vehicles and custom vehicles i… |
+| `GetAmbientPedRangeMultiplier` | — | float | A getter for SET_AMBIENT_PED_RANGE_MULTIPLIER_THIS_FRAME. |
+| `GetAmbientVehicleRangeMultiplier` | — | float | A getter for SET_AMBIENT_VEHICLE_RANGE_MULTIPLIER_THIS_FRAME. |
+| `GetCalmingQuadAtCoords` | x, y | int | This native returns the index of a calming quad if the given point is inside its bounds. |
+| `GetCalmingQuadBounds` | waterQuad | BOOL, int minX, int minY, int maxX, int maxY |  |
+| `GetCalmingQuadCount` | — | int |  |
+| `GetCalmingQuadDampening` | waterQuad, calmingQuadDampening | BOOL |  |
+| `GetCamMatrix` | camera | Vector3 rightVector, Vector3 forwardVector, Vector3 upVector, Vector3 position | Returns the world matrix of the specified camera. |
+| `GetClosestTrackNodes` | position, radius | object | Get all track nodes and their track ids within the radius of the specified coordinates. |
+| `GetCurrentGameName` | — | char* | This native returns the currently used game's name. |
+| `GetCurrentServerEndpoint` | — | char* | Returns the peer address of the remote game server that the user is currently connected to. |
+| `GetDuiHandle` | duiObject | char* | Returns the NUI window handle for a specified DUI browser object. |
+| `GetEntityAddress` | entity | Any* | Experimental: This native may be altered or removed in future versions of CitizenFX without… |
+| `GetEntityArchetypeName` | entity | char* | Returns entity's archetype name, if available. |
+| `GetEntityIndexFromMapdata` | mapdata, entity | int | Returns the transient entity index for a specified mapdata/entity pair. |
+| `GetEntityMapdataOwner` | entity | BOOL, int mapdataHandle, int entityHandle | Retrieves the map data and entity handles from a specific entity. |
+| `GetExternalKvpFloat` | resource, key | float | A getter for SET_RESOURCE_KVP_FLOAT, but for a specified resource. |
+| `GetExternalKvpInt` | resource, key | int | A getter for SET_RESOURCE_KVP_INT, but for a specified resource. |
+| `GetExternalKvpString` | resource, key | char* | A getter for SET_RESOURCE_KVP, but for a specified resource. |
+| `GetFallDamageLandOnFootMultiplier` | — | float | A getter for SET_FALL_DAMAGE_LAND_ON_FOOT_MULTIPLIER. |
+| `GetFallDamageMultiplier` | — | float | A getter for SET_FALL_DAMAGE_MULTIPLIER. |
+| `GetFuelConsumptionRateMultiplier` | — | float |  |
+| `GetFuelConsumptionState` | — | BOOL |  |
+| `GetGlobalPassengerMassMultiplier` | — | float | A getter for SET_GLOBAL_PASSENGER_MASS_MULTIPLIER. |
+| `GetHudComponentAlign` | id | int horizontalAlign, int verticalAlign | See SET_SCRIPT_GFX_ALIGN for details about how gfx align works. |
+| `GetHudComponentName` | id | char* |  |
+| `GetHudComponentSize` | id | Vector3 |  |
+| `GetInteriorEntitiesExtents` | interiorId | float bbMinX, float bbMinY, float bbMinZ, float bbMaxX, float bbMaxY, float bbMaxZ |  |
+| `GetInteriorPortalCornerPosition` | interiorId, portalIndex, cornerIndex | float posX, float posY, float posZ |  |
+| `GetInteriorPortalCount` | interiorId | int |  |
+| `GetInteriorPortalEntityArchetype` | interiorId, portalIndex, entityIndex | int |  |
+| `GetInteriorPortalEntityCount` | interiorId, portalIndex | int |  |
+| `GetInteriorPortalEntityFlag` | interiorId, portalIndex, entityIndex | int |  |
+| `GetInteriorPortalEntityPosition` | interiorId, portalIndex, entityIndex | float posX, float posY, float posZ |  |
+| `GetInteriorPortalEntityRotation` | interiorId, portalIndex, entityIndex | float rotX, float rotY, float rotZ, float rotW |  |
+| `GetInteriorPortalFlag` | interiorId, portalIndex | int |  |
+| `GetInteriorPortalRoomFrom` | interiorId, portalIndex | int |  |
+| `GetInteriorPortalRoomTo` | interiorId, portalIndex | int |  |
+| `GetInteriorPosition` | interiorId | float posX, float posY, float posZ |  |
+| `GetInteriorRoomCount` | interiorId | int |  |
+| `GetInteriorRoomExtents` | interiorId, roomIndex | float bbMinX, float bbMinY, float bbMinZ, float bbMaxX, float bbMaxY, float bbMaxZ |  |
+| `GetInteriorRoomFlag` | interiorId, roomIndex | int |  |
+| `GetInteriorRoomIndexByHash` | interiorId, roomHash | int |  |
+| `GetInteriorRoomName` | interiorId, roomIndex | char* |  |
+| `GetInteriorRoomTimecycle` | interiorId, roomIndex | int |  |
+| `GetInteriorRotation` | interiorId | float rotx, float rotY, float rotZ, float rotW |  |
+| `GetKillFallHeight` | — | float | A getter for SET_KILL_FALL_HEIGHT. |
+| `GetMapZoomDataLevel` | index | BOOL, float zoomScale, float zoomSpeed, float scrollSpeed, float tilesX, float tilesY | Returns the zoom level data by index from mapzoomdata.meta file. |
+| `GetMapdataEntityHandle` | mapDataHash, entityInternalIdx, entityHandle | BOOL | Retrieves the map data entity handle. |
+| `GetMapdataEntityMatrix` | mapDataHash, entityInternalIdx, matrixPtr | BOOL | Returns mapdata's entity matrix. |
+| `GetMapdataFromHashKey` | mapdataHandle | int | Returns the transient map data index for a specified hash. |
+| `GetNuiCursorPosition` | — | int x, int y |  |
+| `GetNumberOfPedCollectionDrawableVariations` | ped, componentId, collection | int | An analogue of GET_NUMBER_OF_PED_DRAWABLE_VARIATIONS that returns number of drawable variati… |
+| `GetNumberOfPedCollectionPropDrawableVariations` | ped, anchorPoint, collection | int | An analogue of GET_NUMBER_OF_PED_PROP_DRAWABLE_VARIATIONS that returns number of prop variat… |
+| `GetNumberOfPedCollectionPropTextureVariations` | ped, anchorPoint, collection, propIndex | int | An alternative to GET_NUMBER_OF_PED_PROP_TEXTURE_VARIATIONS that uses local collection index… |
+| `GetNumberOfPedCollectionTextureVariations` | ped, componentId, collection, drawableId | int | An alternative to GET_NUMBER_OF_PED_TEXTURE_VARIATIONS that uses local collection indexing i… |
+| `GetParkedVehicleDensityMultiplier` | — | float | A getter for SET_PARKED_VEHICLE_DENSITY_MULTIPLIER_THIS_FRAME. |
+| `GetPauseMapPointerWorldPosition` | — | Vector3 | Returns the world position the pointer is hovering on the pause map. |
+| `GetPedCollectionLocalIndexFromDrawable` | ped, componentId, drawableId | int | Gets local index inside a collection (which can be obtained using GET_PED_COLLECTION_NAME_FR… |
+| `GetPedCollectionLocalIndexFromProp` | ped, anchorPoint, propIndex | int | Gets local index inside a collection (which can be obtained using GET_PED_COLLECTION_NAME_FR… |
+| `GetPedCollectionName` | ped, index | char* | Returns name of collection under given index for the given Ped. |
+| `GetPedCollectionNameFromDrawable` | ped, componentId, drawableId | char* | Gets collection name for the given global drawable ID. |
+| `GetPedCollectionNameFromProp` | ped, anchorPoint, propIndex | char* | Gets collection name for the given global prop index. |
+| `GetPedCollectionsCount` | ped | int | Returns number of variation collections available for the given Ped. |
+| `GetPedDecorations` | ped | object | Returns a list of decorations applied to a ped. |
+| `GetPedDensityMultiplier` | — | float | A getter for SET_PED_DENSITY_MULTIPLIER_THIS_FRAME. |
+| `GetPedDrawableGlobalIndexFromCollection` | ped, componentId, collection, drawableId | int | Returns global drawable index based on the local one. |
+| `GetPedDrawableVariationCollectionLocalIndex` | ped, componentId | int | An analogue to GET_PED_DRAWABLE_VARIATION that returns collection local drawable index (insi… |
+| `GetPedDrawableVariationCollectionName` | ped, componentId | char* | An analogue to GET_PED_DRAWABLE_VARIATION that returns collection name instead of the global… |
+| `GetPedEyeColor` | ped | int | A getter for \_SET_PED_EYE_COLOR. |
+| `GetPedFaceFeature` | ped, index | float | A getter for \_SET_PED_FACE_FEATURE. |
+| `GetPedHairColor` | ped | int | A getter for \_SET_PED_HAIR_COLOR. |
+| `GetPedHairHighlightColor` | ped | int | A getter for \_SET_PED_HAIR_COLOR. |
+| `GetPedHeadOverlayData` | ped, index | BOOL, int overlayValue, int colourType, int firstColour, int secondColour, float overlayOpacity | A getter for SET_PED_HEAD_OVERLAY and \_SET_PED_HEAD_OVERLAY_COLOR natives. |
+| `GetPedModelHealthConfig` | modelHash | Hash | Gets a ped model's health config. |
+| `GetPedModelPersonality` | modelHash | Hash | Gets a ped model's personality type. |
+| `GetPedMovementClipset` | ped | int |  |
+| `GetPedPropCollectionLocalIndex` | ped, anchorPoint | int | An analogue to GET_PED_PROP_INDEX that returns collection local prop index (inside GET_PED_P… |
+| `GetPedPropCollectionName` | ped, anchorPoint | char* | An analogue to GET_PED_PROP_INDEX that returns collection name instead of the global drawabl… |
+| `GetPedPropGlobalIndexFromCollection` | ped, anchorPoint, collection, propIndex | int | Returns global prop index based on the local one. |
+| `GetPedSweat` | ped | float | A getter for SET_PED_SWEAT. |
+| `GetPlayerFromServerId` | serverId | Player | Gets a local client's Player ID from its server ID counterpart, assuming the passed serverId… |
+| `GetPlayerInvincible_2` | player | BOOL | Unlike GET_PLAYER_INVINCIBLE this native gets both SET_PLAYER_INVINCIBLE_KEEP_RAGDOLL_ENABLE… |
+| `GetPlayerKillFallHeight` | — | float | A getter for SET_PLAYER_KILL_FALL_HEIGHT. |
+| `GetPlayerMaxStamina` | playerId | float |  |
+| `GetPlayerMeleeWeaponDefenseModifier` | playerId | float | A getter for SET_PLAYER_MELEE_WEAPON_DEFENSE_MODIFIER. |
+| `GetPlayerServerId` | player | int |  |
+| `GetPlayerStamina` | playerId | float |  |
+| `GetPlayerVehicleDamageModifier` | playerId | float | A getter for SET_PLAYER_VEHICLE_DAMAGE_MODIFIER. |
+| `GetPlayerVehicleDefenseModifier` | playerId | float | A getter for SET_PLAYER_VEHICLE_DEFENSE_MODIFIER. |
+| `GetRandomVehicleDensityMultiplier` | — | float | A getter for SET_RANDOM_VEHICLE_DENSITY_MULTIPLIER_THIS_FRAME. |
+| `GetRopeFlags` | rope | int |  |
+| `GetRopeLengthChangeRate` | rope | float |  |
+| `GetRopeTimeMultiplier` | rope | float |  |
+| `GetRopeUpdateOrder` | rope | int |  |
+| `GetRuntimeTextureHeight` | tex | int | Gets the height of the specified runtime texture. |
+| `GetRuntimeTexturePitch` | tex | int | Gets the row pitch of the specified runtime texture, for use when creating data for SET_RUNT… |
+| `GetRuntimeTextureWidth` | tex | int | Gets the width of the specified runtime texture. |
+| `GetScenarioPedDensityMultiplier` | — | float | A getter for SET_SCENARIO_PED_DENSITY_MULTIPLIER_THIS_FRAME. |
+| `GetTimecycleModifierCount` | — | int |  |
+| `GetTimecycleModifierIndexByName` | modifierName | int |  |
+| `GetTimecycleModifierNameByIndex` | modifierIndex | char* |  |
+| `GetTimecycleModifierStrength` | — | float | A getter for SET_TIMECYCLE_MODIFIER_STRENGTH. |
+| `GetTimecycleModifierVar` | modifierName, varName | BOOL, float value1, float value2 |  |
+| `GetTimecycleModifierVarCount` | modifierName | int |  |
+| `GetTimecycleModifierVarNameByIndex` | modifierName, modifierVarIndex | char* |  |
+| `GetTimecycleVarCount` | — | int | Returns the amount of variables available to be applied on timecycle modifiers. |
+| `GetTimecycleVarDefaultValueByIndex` | varIndex | float | See GET_TIMECYCLE_VAR_COUNT. |
+| `GetTimecycleVarNameByIndex` | varIndex | char* | See GET_TIMECYCLE_VAR_COUNT. |
+| `GetTrackBrakingDistance` | track | float |  |
+| `GetTrackMaxSpeed` | track | float |  |
+| `GetTrackNodeCoords` | trackIndex, trackNode, coords | bool | Gets the coordinates of a specific track node. |
+| `GetTrackNodeCount` | trackIndex | int | Gets the specified tracks node count. |
+| `GetTrainCurrentTrackNode` | train | int |  |
+| `GetTrainDoorCount` | train | int | Gets the door count for the specified train. |
+| `GetTrainDoorOpenRatio` | train, doorIndex | float | Gets the ratio that a door is open for on a train. |
+| `GetTrainSpeed` | train | float | Gets the speed the train is currently going. |
+| `GetVehicleAlarmTimeLeft` | vehicle | int |  |
+| `GetVehicleCheatPowerIncrease` | vehicle | float | A getter for SET_VEHICLE_CHEAT_POWER_INCREASE. |
+| `GetVehicleClutch` | vehicle | float |  |
+| `GetVehicleCurrentGear` | vehicle | int |  |
+| `GetVehicleCurrentRpm` | vehicle | float |  |
+| `GetVehicleDashboardBoost` | — | float |  |
+| `GetVehicleDashboardCurrentGear` | — | float | Retrieves the current gear displayed on the dashboard of the vehicle the player is in, retur… |
+| `GetVehicleDashboardFuel` | — | float |  |
+| `GetVehicleDashboardLights` | — | int | Gets the state of the player vehicle's dashboard lights as a bit set indicator_left = 1 indi… |
+| `GetVehicleDashboardOilPressure` | — | float |  |
+| `GetVehicleDashboardOilTemp` | — | float |  |
+| `GetVehicleDashboardRpm` | — | float |  |
+| `GetVehicleDashboardSpeed` | vehicle | float |  |
+| `GetVehicleDashboardTemp` | — | float |  |
+| `GetVehicleDashboardVacuum` | — | float |  |
+| `GetVehicleDensityMultiplier` | — | float | A getter for SET_VEHICLE_DENSITY_MULTIPLIER_THIS_FRAME. |
+| `GetVehicleDrawnWheelAngleMult` | vehicle | float | Gets a vehicle's multiplier used with a wheel's GET_VEHICLE_WHEEL_STEERING_ANGLE to determin… |
+| `GetVehicleEngineTemperature` | vehicle | float |  |
+| `GetVehicleFuelLevel` | vehicle | float |  |
+| `GetVehicleGearRatio` | vehicle, gear | float | Gets vehicles gear ratio on choosen gear. |
+| `GetVehicleGravityAmount` | vehicle | float |  |
+| `GetVehicleHandlingFloat` | vehicle, class_, fieldName | float | Returns the effective handling data of a vehicle as a floating-point value. |
+| `GetVehicleHandlingInt` | vehicle, class_, fieldName | int | Returns the effective handling data of a vehicle as an integer value. |
+| `GetVehicleHandlingVector` | vehicle, class_, fieldName | Vector3 | Returns the effective handling data of a vehicle as a vector value. |
+| `GetVehicleHasFlag` | vehicle, flagIndex | bool | Note: Flags are not the same based on your gamebuild. |
+| `GetVehicleHighGear` | vehicle | int |  |
+| `GetVehicleIndicatorLights` | vehicle | int | Gets the vehicle indicator light state. |
+| `GetVehicleLightMultiplier` | vehicle | float |  |
+| `GetVehicleNextGear` | vehicle | int |  |
+| `GetVehicleNumberOfWheels` | vehicle | int |  |
+| `GetVehicleOilLevel` | vehicle | float |  |
+| `GetVehicleSteeringScale` | vehicle | float |  |
+| `GetVehicleThrottleOffset` | vehicle | float |  |
+| `GetVehicleTopSpeedModifier` | vehicle | float | A getter for MODIFY_VEHICLE_TOP_SPEED. |
+| `GetVehicleTurboPressure` | vehicle | float |  |
+| `GetVehicleTypeRaw` | vehicle | int | Returns the model type of the vehicle as defined by: |
+| `GetVehicleWheelBrakePressure` | vehicle, wheelIndex | float | Gets brake pressure of a wheel. |
+| `GetVehicleWheelFlags` | vehicle, wheelIndex | int | Gets the flags of a wheel. |
+| `GetVehicleWheelHealth` | vehicle, wheelIndex | float |  |
+| `GetVehicleWheelIsPowered` | vehicle, wheelIndex | BOOL | Gets whether the wheel is powered. |
+| `GetVehicleWheelPower` | vehicle, wheelIndex | float | Gets power being sent to a wheel. |
+| `GetVehicleWheelRimColliderSize` | vehicle, wheelIndex | float |  |
+| `GetVehicleWheelRotationSpeed` | vehicle, wheelIndex | float | Gets the rotation speed of a wheel. |
+| `GetVehicleWheelSize` | vehicle | float | Returns vehicle's wheels' size (size is the same for all the wheels, cannot get/set specific… |
+| `GetVehicleWheelSpeed` | vehicle, wheelIndex | float | Gets speed of a wheel at the tyre. |
+| `GetVehicleWheelSteeringAngle` | vehicle, wheelIndex | float | Gets steering angle of a wheel. |
+| `GetVehicleWheelSurfaceMaterial` | vehicle, wheelIndex | int |  |
+| `GetVehicleWheelSuspensionCompression` | vehicle, wheelIndex | float | Gets the current suspension compression of a wheel. |
+| `GetVehicleWheelTireColliderSize` | vehicle, wheelIndex | float |  |
+| `GetVehicleWheelTireColliderWidth` | vehicle, wheelIndex | float |  |
+| `GetVehicleWheelTractionVectorLength` | vehicle, wheelIndex | float | Gets the traction vector length of a wheel. |
+| `GetVehicleWheelWidth` | vehicle | float | Returns vehicle's wheels' width (width is the same for all the wheels, cannot get/set specif… |
+| `GetVehicleWheelXOffset` | vehicle, wheelIndex | float | Returns the offset of the specified wheel relative to the wheel's axle center. |
+| `GetVehicleWheelYRotation` | vehicle, wheelIndex | float |  |
+| `GetVehicleWheelieState` | vehicle | int | List of known states: |
+| `GetVehicleXenonLightsCustomColor` | vehicle | BOOL, int red, int green, int blue | Returns vehicle xenon lights custom RGB color values. |
+| `GetVehicleXmasSnowFactor` | — | float | A getter for SET_VEHICLE_XMAS_SNOW_FACTOR. |
+| `GetVisualSettingFloat` | name | float | A getter for SET_VISUAL_SETTING_FLOAT. |
+| `GetWaterQuadAlpha` | waterQuad | BOOL, int a0, int a1, int a2, int a3 |  |
+| `GetWaterQuadAtCoords` | x, y | int | This native returns the index of a water quad if the given point is inside its bounds. |
+| `GetWaterQuadAtCoords_3d` | x, y, z | int | This alternative implementation of GetWaterQuadAtCoords also checks the height of the water… |
+| `GetWaterQuadBounds` | waterQuad | BOOL, int minX, int minY, int maxX, int maxY |  |
+| `GetWaterQuadCount` | — | int |  |
+| `GetWaterQuadHasLimitedDepth` | waterQuad, hasLimitedDepth | BOOL |  |
+| `GetWaterQuadIsInvisible` | waterQuad, isInvisible | BOOL |  |
+| `GetWaterQuadLevel` | waterQuad, waterQuadLevel | BOOL | level is defined as "z" in water.xml |
+| `GetWaterQuadNoStencil` | waterQuad, noStencil | BOOL |  |
+| `GetWaterQuadType` | waterQuad, waterType | BOOL | Valid type definitions: 0 Square 1 Right triangle where the 90 degree angle is at maxX, minY… |
+| `GetWaveQuadAmplitude` | waveQuad, waveQuadAmplitude | BOOL |  |
+| `GetWaveQuadAtCoords` | x, y | int | This native returns the index of a wave quad if the given point is inside its bounds. |
+| `GetWaveQuadBounds` | waveQuad | BOOL, int minX, int minY, int maxX, int maxY |  |
+| `GetWaveQuadCount` | — | int |  |
+| `GetWaveQuadDirection` | waveQuad | BOOL, float directionX, float directionY |  |
+| `GetWeaponAccuracySpread` | weaponHash | float | A getter for the accuracy spread of a weapon. |
+| `GetWeaponAnimationOverride` | ped | Hash | A getter for SET_WEAPON_ANIMATION_OVERRIDE. |
+| `GetWeaponComponentAccuracyModifier` | componentHash | float | A getter for CWeaponAccuracyModifier in a weapon component. |
+| `GetWeaponComponentCameraHash` | componentHash | int | A getter for CameraHash in a weapon scope component. |
+| `GetWeaponComponentClipSize` | componentHash | int | A getter for ClipSize in a weapon component. |
+| `GetWeaponComponentDamageModifier` | componentHash | float | A getter for CWeaponDamageModifier in a weapon component. |
+| `GetWeaponComponentRangeDamageModifier` | componentHash | float | A getter for CWeaponFallOffModifier damage modifier value in a weapon component. |
+| `GetWeaponComponentRangeModifier` | componentHash | float | A getter for CWeaponFallOffModifier range modifier value in a weapon component. |
+| `GetWeaponComponentReticuleHash` | componentHash | int | A getter for ReticuleHash in a weapon scope component. |
+| `GetWeaponDamageModifier` | weaponHash | float | A getter for \_SET_WEAPON_DAMAGE_MODIFIER. |
+| `GetWeaponRecoilShakeAmplitude` | weaponHash | float | A getter for the recoil shake amplitude of a weapon. |
+| `GetWorldCoordFromScreenCoord` | screenX, screenY | Vector3 worldVector, Vector3 normalVector | Converts a screen coordinate into its relative world coordinate. |
+| `HasMinimapOverlayLoaded` | id | BOOL | Returns whether or not the specific minimap overlay has loaded. |
+| `IsBigmapActive` | — | BOOL | Returns true if the minimap is currently expanded. |
+| `IsBigmapFull` | — | BOOL |  |
+| `IsDisabledRawKeyDown` | rawKeyIndex | BOOL | Gets if the specified rawKeyIndex is pressed down, even if the key is disabled with DISABLE_… |
+| `IsDisabledRawKeyPressed` | rawKeyIndex | BOOL | Gets if the specified rawKeyIndex is pressed, even if the key is disabled with DISABLE_RAW_K… |
+| `IsDisabledRawKeyReleased` | rawKeyIndex | BOOL | Gets if the specified rawKeyIndex was released, even if the key is disabled with DISABLE_RAW… |
+| `IsDisabledRawKeyUp` | rawKeyIndex | BOOL | Gets if the specified rawKeyIndex is up, even if the key is disabled with DISABLE_RAW_KEY_TH… |
+| `IsDuiAvailable` | duiObject | BOOL | Returns whether or not a browser is created for a specified DUI browser object. |
+| `IsGameEnhancedVersion` | — | BOOL |  |
+| `IsNuiFocusKeepingInput` | — | BOOL | Checks if keyboard input is enabled during NUI focus using SET_NUI_FOCUS_KEEP_INPUT. |
+| `IsNuiFocused` | — | BOOL | Returns the current NUI focus state previously set with SET_NUI_FOCUS. |
+| `IsPedCollectionComponentVariationGen9Exclusive` | ped, componentId, collection, drawableId | bool | An alternative to IS_PED_COMPONENT_VARIATION_GEN9\_EXCLUSIVE that uses local collection inde… |
+| `IsPedCollectionComponentVariationValid` | ped, componentId, collection, drawableId, textureId | bool | An alternative to IS_PED_COMPONENT_VARIATION_VALID that uses local collection indexing inste… |
+| `IsPedComponentVariationGen9Exclusive` | ped, componentId, drawableId | bool |  |
+| `IsRawKeyDown` | rawKeyIndex | BOOL | Gets if the specified rawKeyIndex is pressed down on the keyboard. |
+| `IsRawKeyPressed` | rawKeyIndex | BOOL | Gets if the specified rawKeyIndex is pressed on the keyboard. |
+| `IsRawKeyReleased` | rawKeyIndex | BOOL | Gets if the specified rawKeyIndex was just released on the keyboard. |
+| `IsRawKeyUp` | rawKeyIndex | BOOL | Gets if the specified rawKeyIndex is up on the keyboard. |
+| `IsStreamingFileReady` | registerAs | BOOL | Experimental: This native may be altered or removed in future versions of CitizenFX without… |
+| `IsTrackEnabled` | track | bool | Getter for SET_TRACK_ENABLED |
+| `IsTrackSwitchedOff` | track | bool | Getter for SWITCH_TRAIN_TRACK. |
+| `IsVehicleAlarmSet` | vehicle | BOOL |  |
+| `IsVehicleInteriorLightOn` | vehicle | BOOL |  |
+| `IsVehicleNeedsToBeHotwired` | vehicle | BOOL |  |
+| `IsVehiclePreviouslyOwnedByPlayer` | vehicle | BOOL |  |
+| `IsVehicleWanted` | vehicle | BOOL |  |
+| `IsVehicleWheelBrokenOff` | vehicle, wheelIndex | BOOL | Getter for BREAK_OFF_VEHICLE_WHEEL. |
+| `LeaveCursorMode` | — | — | Leaves cursor mode. |
+| `LoadWaterFromPath` | resourceName, fileName | BOOL | Define the xml in a resources fxmanifest, under the file(s) section. |
+| `MumbleAddVoiceChannelListen` | channel | — | Starts listening to the specified channel, when available. |
+| `MumbleAddVoiceTargetChannel` | targetId, channel | — | Adds the specified channel to the target list for the specified Mumble voice target ID. |
+| `MumbleAddVoiceTargetPlayer` | targetId, player | — | Adds the specified player to the target list for the specified Mumble voice target ID. |
+| `MumbleAddVoiceTargetPlayerByServerId` | targetId, serverId | — | Adds the specified player to the target list for the specified Mumble voice target ID. |
+| `MumbleClearVoiceChannel` | — | — |  |
+| `MumbleClearVoiceTarget` | targetId | — | Clears the target list for the specified Mumble voice target ID. |
+| `MumbleClearVoiceTargetChannels` | targetId | — | Clears channels from the target list for the specified Mumble voice target ID. |
+| `MumbleClearVoiceTargetPlayers` | targetId | — | Clears players from the target list for the specified Mumble voice target ID. |
+| `MumbleDoesChannelExist` | channel | BOOL | Check whether specified channel exists on the Mumble server. |
+| `MumbleGetTalkerProximity` | — | float |  |
+| `MumbleGetVoiceChannelFromServerId` | serverId | int | Returns the mumble voice channel from a player's server id. |
+| `MumbleIsActive` | — | BOOL |  |
+| `MumbleIsConnected` | — | BOOL | This native will return true if the user succesfully connected to the voice server. |
+| `MumbleIsPlayerTalking` | player | BOOL |  |
+| `MumbleRemoveVoiceChannelListen` | channel | — | Stops listening to the specified channel. |
+| `MumbleRemoveVoiceTargetChannel` | targetId, channel | — | Removes the specified voice channel from the user's voice targets. |
+| `MumbleRemoveVoiceTargetPlayer` | targetId, player | — | Removes the specified player from the user's voice targets. |
+| `MumbleRemoveVoiceTargetPlayerByServerId` | targetId, serverId | — | Removes the specified player from the user's voice targets. |
+| `MumbleSetActive` | state | — |  |
+| `MumbleSetAudioInputDistance` | distance | — | Sets the current input distance. |
+| `MumbleSetAudioInputIntent` | intentHash | — | Use this native to disable noise suppression and high pass filters. |
+| `MumbleSetAudioOutputDistance` | distance | — | Sets the current output distance. |
+| `MumbleSetServerAddress` | address, port | — | Changes the Mumble server address to connect to, and reconnects to the new address. |
+| `MumbleSetSubmixForServerId` | serverId, submixId | — | Sets the audio submix ID for a specified player using Mumble 'Native Audio' functionality. |
+| `MumbleSetTalkerProximity` | value | — |  |
+| `MumbleSetVoiceChannel` | channel | — |  |
+| `MumbleSetVoiceTarget` | targetId | — | Sets the current Mumble voice target ID to broadcast voice to. |
+| `MumbleSetVolumeOverride` | player, volume | — | Overrides the output volume for a particular player on Mumble. |
+| `MumbleSetVolumeOverrideByServerId` | serverId, volume | — | Overrides the output volume for a particular player with the specified server id and player… |
+| `OnesyncEnableRemoteAttachmentSanitization` | enable | — | Toggles a check that prevents attaching (networked) entities to remotely owned peds. |
+| `OverridePedsCanStandOnTopFlag` | flag | — | Sets whether peds can stand on top of all vehicles without falling off. |
+| `OverridePedsUseDefaultDriveByClipset` | flag | — | Allows the bypassing of default game behavior that prevents the use of SET_PED_DRIVE_BY_CLIP… |
+| `OverridePopGroups` | path | — | Replaces the popgroups (CPopGroupList) meta file with the file in the specified path. |
+| `OverrideReactionToVehicleSiren` | state, reaction | — | Setting the state to true and a value between 0 and 2 will cause pedestrian vehicles to reac… |
+| `OverrideVehiclePedsCanStandOnTopFlag` | vehicle, can | — | Overrides whether or not peds can stand on top of the specified vehicle. |
+| `PrepareLight` | lightType, flags, x, y, z, r, g, b, intensity | — | Create a new light with specified type, flags, position, color, and intensity. |
+| `RegisterArchetypes` | factory | — | Experimental: This native may be altered or removed in future versions of CitizenFX without… |
+| `RegisterFontFile` | fileName | — | Registers a specified .gfx file as GFx font library. |
+| `RegisterFontId` | fontName | int | Registers a specified font name for use with text draw commands. |
+| `RegisterKeyMapping` | commandString, description, defaultMapper, defaultParameter | — | Registers a key mapping for the current resource. |
+| `RegisterNuiCallback` | callbackType, callback | — |  |
+| `RegisterNuiCallbackType` | callbackType | — |  |
+| `RegisterRawNuiCallback` | callbackType, callback | — |  |
+| `RegisterRopeData` | numSections, radius, diffuseTextureName, normalMapName, distanceMappingScale, uvScaleX, uvScaleY, specularFresnel, specularFalloff, specularIntensity, bumpiness, color | int | Registers a custom rope data with the game. |
+| `RegisterStreamingFileFromCache` | resourceName, fileName, cacheString | — | Experimental: This native may be altered or removed in future versions of CitizenFX without… |
+| `RegisterStreamingFileFromKvs` | kvsKey | — | Experimental: This native may be altered or removed in future versions of CitizenFX without… |
+| `RegisterStreamingFileFromUrl` | registerAs, url | — | Experimental: This native may be altered or removed in future versions of CitizenFX without… |
+| `RegisterTrackJunction` | trackIndex, trackNode, newIndex, newNode, direction | int | Registers a track junction that when enabled will cause a train on the defined trackIndex, n… |
+| `RemoveDryVolume` | handle | — | Removes a dry volume from the game session. |
+| `RemoveHealthConfig` | configName | — | Removes health config. |
+| `RemoveReplaceTexture` | origTxd, origTxn | — | Experimental natives, please do not use in a live environment. |
+| `RemoveTimecycleModifier` | modifierName | — |  |
+| `RemoveTimecycleModifierVar` | modifierName, varName | — |  |
+| `RemoveTrackJunction` | junctionIndex | bool | Removes the specified track junction. |
+| `RequestResourceFileSet` | setName | BOOL | Requests a resource file set with the specified name to be downloaded and mounted on top of… |
+| `ResetEntityDrawOutlineRenderTechnique` | — | — | This function undoes changes made by SET_ENTITY_DRAW_OUTLINE_RENDER_TECHNIQUE, restoring the… |
+| `ResetFlyThroughWindscreenParams` | — | — | Resets parameters which is used by the game for checking is ped needs to fly through windscr… |
+| `ResetMapZoomDataLevel` | index | — | Resets values from the zoom level data by index to defaults from mapzoomdata.meta. |
+| `ResetMapdataEntityMatrix` | mapDataHash, entityInternalIdx | BOOL | Resets mapdata entity transform matrix to its original state. |
+| `ResetPedModelPersonality` | modelHash | — | Restores an overridden ped model personality type to the default value. |
+| `ResetVehiclePedsCanStandOnTopFlag` | vehicle | — | Resets whether or not peds can stand on top of the specified vehicle. |
+| `ResetWater` | — | — | Resets the water to the games default water.xml. |
+| `SelectEntityAtCursor` | hitFlags, precise | Entity | Gets the selected entity at the current mouse cursor position, and changes the current selec… |
+| `SelectEntityAtPos` | fracX, fracY, hitFlags, precise | Entity | Gets the selected entity at the specified mouse cursor position, and changes the current sel… |
+| `SendDuiMessage` | duiObject, jsonString | — | Sends a message to the specific DUI root page. |
+| `SendDuiMouseDown` | duiObject, button | — | Injects a 'mouse down' event for a DUI object. |
+| `SendDuiMouseMove` | duiObject, x, y | — | Injects a 'mouse move' event for a DUI object. |
+| `SendDuiMouseUp` | duiObject, button | — | Injects a 'mouse up' event for a DUI object. |
+| `SendDuiMouseWheel` | duiObject, deltaY, deltaX | — | Injects a 'mouse wheel' event for a DUI object. |
+| `SendLoadingScreenMessage` | jsonString | BOOL | Sends a message to the loadingScreen NUI frame, which contains the HTML page referenced in l… |
+| `SendNuiMessage` | jsonString | BOOL |  |
+| `SetAimCooldown` | value | — | Adds a cooldown between instances of moving and then aiming. |
+| `SetAudioSubmixEffectParamFloat` | submixId, effectSlot, paramIndex, paramValue | — | Sets a floating-point parameter for a submix effect. |
+| `SetAudioSubmixEffectParamInt` | submixId, effectSlot, paramIndex, paramValue | — | Sets an integer parameter for a submix effect. |
+| `SetAudioSubmixEffectRadioFx` | submixId, effectSlot | — | Assigns a RadioFX effect to a submix effect slot. |
+| `SetAudioSubmixOutputVolumes` | submixId, outputSlot, frontLeftVolume, frontRightVolume, rearLeftVolume, rearRightVolume, channel5Volume, channel6Volume | — | Sets the volumes for the sound channels in a submix effect. |
+| `SetCalmingQuadBounds` | waterQuad, minX, minY, maxX, maxY | BOOL |  |
+| `SetCalmingQuadDampening` | calmingQuad, dampening | BOOL |  |
+| `SetDefaultVehicleNumberPlateTextPattern` | plateIndex, pattern | — | Sets the default number plate text pattern for vehicles seen on the local client with the sp… |
+| `SetDiscordAppId` | appId | — | This native sets the app id for the discord rich presence implementation. |
+| `SetDiscordRichPresenceAction` | index, label, url | — | Sets a clickable button to be displayed in a player's Discord rich presence. |
+| `SetDiscordRichPresenceAsset` | assetName | — | This native sets the image asset for the discord rich presence implementation. |
+| `SetDiscordRichPresenceAssetSmall` | assetName | — | This native sets the small image asset for the discord rich presence implementation. |
+| `SetDiscordRichPresenceAssetSmallText` | text | — | This native sets the hover text of the small image asset for the discord rich presence imple… |
+| `SetDiscordRichPresenceAssetText` | text | — | This native sets the hover text of the image asset for the discord rich presence implementat… |
+| `SetDuiUrl` | duiObject, url | — | Navigates the specified DUI browser to a different URL. |
+| `SetEmitterProbeLength` | probeLength | — | Allows StaticEmitter's without a linked entity to make use of environment features like occl… |
+| `SetEntityDrawOutline` | entity, enabled | — | Draws an outline around a given entity. |
+| `SetEntityDrawOutlineColor` | red, green, blue, alpha | — | Sets color for entity outline. |
+| `SetEntityDrawOutlineRenderTechnique` | techniqueGroup | — | Sets the render technique for drawing an entity's outline. |
+| `SetEntityDrawOutlineShader` | shader | — | Sets variant of shader that will be used to draw entity outline. |
+| `SetEntityMatrix` | entity, forwardX, forwardY, forwardZ, rightX, rightY, rightZ, upX, upY, upZ, atX, atY, atZ | — | Sets an entity's matrix. |
+| `SetFallDamageLandOnFootMultiplier` | multiplier | — | A setter for GET_FALL_DAMAGE_LAND_ON_FOOT_MULTIPLIER. |
+| `SetFallDamageMultiplier` | multiplier | — | A setter for GET_FALL_DAMAGE_MULTIPLIER. |
+| `SetFlashLightKeepOnWhileMoving` | state | — | Allows Weapon-Flashlight beams to stay visible while moving. |
+| `SetFlyThroughWindscreenParams` | vehMinSpeed, unkMinSpeed, unkModifier, minDamage | BOOL | Sets some in-game parameters which is used for checks is ped needs to fly through windscreen… |
+| `SetFogVolumeRenderDisabled` | state | — | This completely disables rendering of fog volumes (vfxfogvolumeinfo.ymt). |
+| `SetFuelConsumptionRateMultiplier` | multiplier | — | Sets fuel consumption rate multiplier for all vehicles operated by a player. |
+| `SetFuelConsumptionState` | state | — | Turns on and off fuel consumption in all vehicles operated by a player. |
+| `SetGlobalPassengerMassMultiplier` | massMul | — |  |
+| `SetHandlingField` | vehicle, class_, fieldName, value | — | Sets a global handling override for a specific vehicle class. |
+| `SetHandlingFloat` | vehicle, class_, fieldName, value | — | Sets a global handling override for a specific vehicle class. |
+| `SetHandlingInt` | vehicle, class_, fieldName, value | — | Sets a global handling override for a specific vehicle class. |
+| `SetHandlingVector` | vehicle, class_, fieldName, value | — | Sets a global handling override for a specific vehicle class. |
+| `SetHealthConfigDefaultArmor` | configName, newValue | — | Sets default armor value for specific health config. |
+| `SetHealthConfigDefaultEndurance` | configName, newValue | — | Sets default endurance value for specific health config. |
+| `SetHealthConfigDefaultHealth` | configName, newValue | — | Sets default health value for specific health config. |
+| `SetHealthConfigDogTakedownThreshold` | configName, newValue | — | Sets default dog takedown threshold value for specific health config. |
+| `SetHealthConfigDyingThreshold` | configName, newValue | — | Sets default dying health threshold value for specific health config. |
+| `SetHealthConfigFatiguedThreshold` | configName, newValue | — | Sets default fatigued health threshold value for specific health config. |
+| `SetHealthConfigHurtThreshold` | configName, newValue | — | Sets default hurt health threshold value for specific health config. |
+| `SetHealthConfigInjuredThreshold` | configName, newValue | — | Sets default injured health threshold value for specific health config. |
+| `SetHealthConfigInvincible` | configName, newValue | — | Sets default invincible value for specific health config. |
+| `SetHealthConfigMeleeFatalAttack` | configName, newValue | — | Sets default melee cardinal fatal attack value for specific health config. |
+| `SetHealthConfigWritheFromBulletThreshold` | configName, newValue | — | Sets default writhe from bullet threshold value for specific health config. |
+| `SetHudComponentAlign` | id, horizontalAlign, verticalAlign | — | See SET_SCRIPT_GFX_ALIGN for details about how gfx align works. |
+| `SetHudComponentSize` | id, x, y | — |  |
+| `SetInteriorPortalCornerPosition` | interiorId, portalIndex, cornerIndex, posX, posY, posZ | — |  |
+| `SetInteriorPortalEntityFlag` | interiorId, portalIndex, entityIndex, flag | — |  |
+| `SetInteriorPortalFlag` | interiorId, portalIndex, flag | — |  |
+| `SetInteriorPortalRoomFrom` | interiorId, portalIndex, roomFrom | — |  |
+| `SetInteriorPortalRoomTo` | interiorId, portalIndex, roomTo | — |  |
+| `SetInteriorProbeLength` | probeLength | — | Overwrite the games default CPortalTracker interior detection range. |
+| `SetInteriorRoomExtents` | interiorId, roomIndex, bbMinX, bbMinY, bbMinZ, bbMaxX, bbMaxY, bbMaxZ | — |  |
+| `SetInteriorRoomFlag` | interiorId, roomIndex, flag | — |  |
+| `SetInteriorRoomTimecycle` | interiorId, roomIndex, timecycleHash | — |  |
+| `SetKeyMappingHideResources` | hide | — | Toggles the visibility of resource names in the FiveM key mapping page. |
+| `SetKillFallHeight` | height | — | A setter for GET_KILL_FALL_HEIGHT. |
+| `SetLightAlpha` | alpha | — | Set the alpha transparency of the light. |
+| `SetLightAo` | intensity, radius, bias, intensity2 | — | Set ambient occlusion (AO) parameters for a specified light. |
+| `SetLightCapsuleSize` | size | — | Set the capsule size of a specified light. |
+| `SetLightClipRect` | x, y, width, height | — | Set the clip rectangle for a created light. |
+| `SetLightColor` | r, g, b | — | Set the color of a specified light. |
+| `SetLightCone` | innerConeAngle, outerConeAngle | — | Set the inner and outer cone angles of a specified light. |
+| `SetLightCoords` | x, y, z | — | Set the world coordinates of a specified light. |
+| `SetLightDirection` | xDir, yDir, zDir, xTanDir, yTanDir, zTanDir | — | Set the forward and tangent direction vectors for an existing light, allowing control over i… |
+| `SetLightExtraflags` | extraFlags | — | Set additional configuration flags for an existing light |
+| `SetLightFadeDistance` | fadeDistance | — | Set the fade distance. |
+| `SetLightFalloff` | falloff | — | Adjust the falloff parameter for an existing light, affecting how light intensity decreases… |
+| `SetLightFlags` | flags | — | Set or update specific flags for a created light to control its behavior or properties. |
+| `SetLightHeadlight` | intensity, range | — | Set the headlight properties of a created light, adjusting its intensity and range. |
+| `SetLightIntensity` | intensity | — | Set the intensity of an existing light. |
+| `SetLightInterior` | interiorId, isPortal, roomIndex | — | Set the interior and room where the light should be active. |
+| `SetLightPlane` | x, y, z, w | — | Set the plane parameters for a light. |
+| `SetLightRadius` | radius | — | Set the radius of a created light. |
+| `SetLightShadowDetails` | shadowFlags, shadowDistance, shadowFade, shadowDepthBiasScale | — | Set the shadow details for a created light. |
+| `SetLightShadowFadeDistance` | fadeDistance | — | Set the fade distance for the shadows of a created light. |
+| `SetLightSpecularFadeDistance` | fadeDistance | — | Set the specular fade distance for a created light. |
+| `SetLightTexture` | textureDict, textureHash | — | Assign a texture to an existing light source, allowing custom light shapes or patterns using… |
+| `SetLightType` | lightType | — | Change the light type of a already created light. |
+| `SetLightVolumeDetails` | volIntensity, volSizeScale, r, g, b, i, outerExponent | — | Set volumetric light properties for an existing light, enabling custom volumetric effects su… |
+| `SetLightVolumetricFadeDistance` | volumetricFadeDistance | — | Set the fade distance for volumetric lightingn. |
+| `SetManualShutdownLoadingScreenNui` | manualShutdown | — | ⚠️ OBSOLETO. Note: This native is deprecated and doesn't work anymore. |
+| `SetMapZoomDataLevel` | index, zoomScale, zoomSpeed, scrollSpeed, tilesX, tilesY | — | Sets values to the zoom level data by index. |
+| `SetMillisecondsPerGameMinute` | value | — | Overrides how many real ms are equal to one game minute. |
+| `SetMinimapClipType` | type | — | Sets the type for the minimap blip clipping object to be either rectangular or rounded. |
+| `SetMinimapComponentPosition` | name, alignX, alignY, posX, posY, sizeX, sizeY | — | Overrides the minimap component data (from common:/data/ui/frontend.xml) for a specified com… |
+| `SetMinimapOverlayDisplay` | miniMap, x, y, xScale, yScale, alpha | — | Sets the display info for a minimap overlay. |
+| `SetModelHeadlightConfiguration` | modelHash, ratePerSecond, headlightRotation, invertRotation | — | ⚠️ OBSOLETO. This native is deprecated and does nothing! |
+| `SetMpGamerTagsUseVehicleBehavior` | enabled | — | Sets whether all tags should group (normal game behavior) or should remain independent and a… |
+| `SetMpGamerTagsVisibleDistance` | distance | — | Sets the maximum distance at which all tags will be visible and which beyond will not be dis… |
+| `SetNuiFocus` | hasFocus, hasCursor | — |  |
+| `SetNuiFocusKeepInput` | keepInput | — |  |
+| `SetNuiZindex` | zIndex | — | Set the z-index of the NUI resource. |
+| `SetPedCollectionComponentVariation` | ped, componentId, collection, drawableId, textureId, paletteId | — | An alternative to SET_PED_COMPONENT_VARIATION that uses local collection indexing instead of… |
+| `SetPedCollectionPreloadPropData` | ped, anchorPoint, collection, propIndex, textureId | — | An alternative to SET_PED_PRELOAD_PROP_DATA that uses local collection indexing instead of t… |
+| `SetPedCollectionPreloadVariationData` | ped, componentId, collection, drawableId, textureId | — | An alternative to SET_PED_PRELOAD_VARIATION_DATA that uses local collection indexing instead… |
+| `SetPedCollectionPropIndex` | ped, anchorPoint, collection, propIndex, textureId, attach | — | An alternative to SET_PED_PROP_INDEX that uses local collection indexing instead of the glob… |
+| `SetPedMeleeCombatLimits` | primaryCount, secondaryCount, populationPedCount | — | Override the limits on the number and types of melee combatants. |
+| `SetPedModelHealthConfig` | modelHash, configName | — | Sets a ped model's health config. |
+| `SetPedModelPersonality` | modelHash, personalityHash | — | Overrides a ped model personality type. |
+| `SetPedTurningThresholds` | min, max | — | Purpose: The game's default values for these make shooting while traveling Left quite a bit… |
+| `SetPlayerKillFallHeight` | height | — | A setter for GET_PLAYER_KILL_FALL_HEIGHT. |
+| `SetPlayerMaxStamina` | playerId, maxStamina | bool |  |
+| `SetPlayerStamina` | playerId, stamina | bool |  |
+| `SetPlayerTalkingOverride` | player, state | — | the status of default voip system. |
+| `SetReactionToVehicleSirenDisabled` | state | — | This completely disables pedestrian vehicles from reacting to sirens. |
+| `SetRichPresence` | presenceState | — | Sets the player's rich presence detail state for social platform providers to a specified st… |
+| `SetRopeLengthChangeRate` | rope, lengthChangeRate | — | Set's the ropes length change rate, which is the speed that rope should wind if started. |
+| `SetRopesCreateNetworkWorldState` | shouldCreate | — | Toggles whether the usage of ADD_ROPE should create an underlying CNetworkRopeWorldStateData. |
+| `SetRuntimeTextureArgbData` | tex, buffer, length | BOOL |  |
+| `SetRuntimeTextureImage` | tex, fileName | BOOL | Replaces the pixel data in a runtime texture with the image data from a file in the current… |
+| `SetRuntimeTexturePixel` | tex, x, y, r, g, b, a | — | Sets a pixel in the specified runtime texture. |
+| `SetSnakeoilForEntry` | name, path, data | — |  |
+| `SetTextChatEnabled` | enabled | BOOL |  |
+| `SetTimecycleModifierVar` | modifierName, varName, value1, value2 | — |  |
+| `SetTrackBrakingDistance` | track, brakingDistance | — | Sets the braking distance of the track. |
+| `SetTrackEnabled` | track, enabled | — | Toggles the track being active. |
+| `SetTrackJunctionActive` | junctionIndex, state | bool | Sets the state of a track junction. |
+| `SetTrackMaxSpeed` | track, newSpeed | — | Sets the max speed for the train tracks. |
+| `SetTrainDoorOpenRatio` | train, doorIndex, ratio | — | Sets the ratio that a door is open for on a train. |
+| `SetTrainState` | train, state | — |  |
+| `SetTrainStopAtStations` | train, state | — | Toggles a train's ability to stop at stations |
+| `SetTrainsForceDoorsOpen` | forceOpen | — | Enables or disables whether train doors should be forced open whilst a player is inside the… |
+| `SetVehicleAlarmTimeLeft` | vehicle, time | — |  |
+| `SetVehicleAutoRepairDisabled` | vehicle, value | — | Disables the vehicle from being repaired when a vehicle extra is enabled. |
+| `SetVehicleClutch` | vehicle, clutch | — |  |
+| `SetVehicleCurrentGear` | vehicle, gear | — |  |
+| `SetVehicleCurrentRpm` | vehicle, rpm | — |  |
+| `SetVehicleEngineTemperature` | vehicle, temperature | — |  |
+| `SetVehicleFlag` | vehicle, flagIndex, value | bool | This native is a setter for GET_VEHICLE_HAS_FLAG. |
+| `SetVehicleFuelLevel` | vehicle, level | — |  |
+| `SetVehicleGearRatio` | vehicle, gear, ratio | — | Sets the vehicles gear ratio on choosen gear, reverse gear needs to be a negative float and… |
+| `SetVehicleGravityAmount` | vehicle, gravity | — |  |
+| `SetVehicleHandlingField` | vehicle, class_, fieldName, value | — | Sets a handling override for a specific vehicle. |
+| `SetVehicleHandlingFloat` | vehicle, class_, fieldName, value | — | Sets a handling override for a specific vehicle. |
+| `SetVehicleHandlingInt` | vehicle, class_, fieldName, value | — | Sets a handling override for a specific vehicle. |
+| `SetVehicleHandlingVector` | vehicle, class_, fieldName, value | — | Sets a handling override for a specific vehicle. |
+| `SetVehicleHighGear` | vehicle, gear | — |  |
+| `SetVehicleNextGear` | vehicle, nextGear | — |  |
+| `SetVehicleNitroPtfxRange` | range | — | Sets the maximum distance in which \_SET_VEHICLE_NITRO_ENABLED PTFX are rendered. |
+| `SetVehicleOilLevel` | vehicle, level | — |  |
+| `SetVehiclePitchBias` | vehicle, value | — | Set the vehicle's pitch bias. |
+| `SetVehicleRollBias` | vehicle, value | — | Set the vehicle's roll bias. |
+| `SetVehicleSteeringAngle` | vehicle, angle | — |  |
+| `SetVehicleSteeringScale` | vehicle, scale | — |  |
+| `SetVehicleSuspensionHeight` | vehicle, newHeight | — | Sets the height of the vehicle's suspension. |
+| `SetVehicleTurboPressure` | vehicle, pressure | — |  |
+| `SetVehicleWheelBrakePressure` | vehicle, wheelIndex, pressure | — | Sets brake pressure of a wheel. |
+| `SetVehicleWheelFlags` | vehicle, wheelIndex, flags | — | Sets the flags of a wheel. |
+| `SetVehicleWheelHealth` | vehicle, wheelIndex, health | — |  |
+| `SetVehicleWheelIsPowered` | vehicle, wheelIndex, powered | — | Sets whether the wheel is powered. |
+| `SetVehicleWheelPower` | vehicle, wheelIndex, power | — | Sets power being sent to a wheel. |
+| `SetVehicleWheelRimColliderSize` | vehicle, wheelIndex, value | — | Not sure what this changes, probably determines physical rim size in case the tire is blown. |
+| `SetVehicleWheelRotationSpeed` | vehicle, wheelIndex, speed | — | Sets the rotation speed of a wheel. |
+| `SetVehicleWheelSize` | vehicle, size | BOOL | Sets vehicle's wheels' size (size is the same for all the wheels, cannot get/set specific wh… |
+| `SetVehicleWheelTireColliderSize` | vehicle, wheelIndex, value | — | Use along with SetVehicleWheelSize to resize the wheels (this native sets the collider size… |
+| `SetVehicleWheelTireColliderWidth` | vehicle, wheelIndex, value | — | Use along with SetVehicleWheelWidth to resize the wheels (this native sets the collider widt… |
+| `SetVehicleWheelTractionVectorLength` | vehicle, wheelIndex, length | — | Sets the traction vector length of a wheel. |
+| `SetVehicleWheelWidth` | vehicle, width | BOOL | Sets vehicle's wheels' width (width is the same for all the wheels, cannot get/set specific… |
+| `SetVehicleWheelXOffset` | vehicle, wheelIndex, offset | — | Adjusts the offset of the specified wheel relative to the wheel's axle center. |
+| `SetVehicleWheelYRotation` | vehicle, wheelIndex, value | — |  |
+| `SetVehicleWheelieState` | vehicle, state | — | Example script: https://pastebin.com/J6XGbkCW List of known states: |
+| `SetVehicleXenonLightsCustomColor` | vehicle, red, green, blue | — | Sets custom vehicle xenon lights color, allowing to use RGB palette. |
+| `SetVehicleXmasSnowFactor` | gripFactor | — |  |
+| `SetVisualSettingFloat` | name, value | — | Overrides a floating point value from visualsettings.dat temporarily. |
+| `SetWaterAreaClipRect` | minX, minY, maxX, maxY | — | Sets world clip boundaries for water quads file (water.xml, water_heistisland.xml) Used inte… |
+| `SetWaterQuadAlpha` | waterQuad, a0, a1, a2, a3 | BOOL |  |
+| `SetWaterQuadBounds` | waterQuad, minX, minY, maxX, maxY | BOOL | This native allows you to update the bounds of a specified water quad index. |
+| `SetWaterQuadHasLimitedDepth` | waterQuad, hasLimitedDepth | BOOL |  |
+| `SetWaterQuadIsInvisible` | waterQuad, isInvisible | BOOL |  |
+| `SetWaterQuadLevel` | waterQuad, level | BOOL |  |
+| `SetWaterQuadNoStencil` | waterQuad, noStencil | BOOL |  |
+| `SetWaterQuadType` | waterQuad, type | BOOL | This native allows you to update the water quad type. |
+| `SetWaveQuadAmplitude` | waveQuad, amplitude | BOOL |  |
+| `SetWaveQuadBounds` | waveQuad, minX, minY, maxX, maxY | BOOL | This native allows you to update the bounds of a specified water quad index. |
+| `SetWaveQuadDirection` | waveQuad, directionX, directionY | BOOL | directionX/Y should be constrained between -1.0 and 1.0 A positive value will create the wav… |
+| `SetWeaponAccuracySpread` | weaponHash, spread | — | A setter for the accuracy spread of a weapon. |
+| `SetWeaponRecoilShakeAmplitude` | weaponHash, amplitude | — | A setter for the recoil shake amplitude of a weapon. |
+| `SetWeaponsNoAimBlocking` | state | — | Disables weapons aim blocking due to environment for local player. |
+| `SetWeaponsNoAutoreload` | state | — | Disables the game's built-in auto-reloading. |
+| `SetWeaponsNoAutoswap` | state | — | Disables autoswapping to another weapon when the current weapon runs out of ammo. |
+| `SetWeatherCycleEntry` | index, typeName, timeMult | BOOL |  |
+| `SetWeatherOwnedByNetwork` | network | — | Sets whether or not the weather should be owned by the network subsystem. |
+| `SetWetClothPinRadiusScale` | scale | — | Modifies the radius scale used in the simulation of wet cloth physics. |
+| `ShutdownLoadingScreenNui` | — | — | Shuts down the loadingScreen NUI frame, similarly to SHUTDOWN_LOADING_SCREEN. |
+| `StartFindExternalKvp` | resourceName, prefix | int | Equivalent of START_FIND_KVP, but for another resource than the current one. |
+| `TriggerLatentServerEventInternal` | eventName, eventPayload, payloadLength, bps | — | The backing function for TriggerLatentServerEvent. |
+| `TriggerServerEventInternal` | eventName, eventPayload, payloadLength | — | The backing function for TriggerServerEvent. |
+| `UnregisterRawNuiCallback` | callbackType | — | Will unregister and cleanup a registered NUI callback handler. |
+| `UpdateMapdataEntity` | mapdata, entity, entityDef | — | Transiently updates the entity with the specified mapdata index and entity index. |
+
+---
+
+# 33. Historial de este documento
 
 | Fecha | Cambio |
 |---|---|
+| 2026-10-20 (rev. 2) | Verificación completa contra fuentes primarias: el código fuente de FiveM (`citizenfx/fivem`, build 37579), el repositorio de la documentación oficial (`citizenfx/fivem-docs`) y la base de datos oficial de natives. Todas las llamadas a natives de los ejemplos Lua y JS se han comprobado (nombre y número de argumentos), igual que las APIs de ox_lib, ox_inventory, ox_target, ESX, QBCore, Qbox y pma-voice contra sus repositorios. Nuevo: referencia completa del runtime Lua (9.9), qué soporta el navegador NUI/CEF (14.11), guía para crear un framework propio (17.6) y el apéndice A con los 912 natives CFX. Correcciones: `os`/`io` solo en servidor, reglas de ticks de los *deferrals*, modo *orphan* por defecto, natives de *culling* obsoletos, `AddReplaceTexture` experimental, `GetConvarBool`/`GetConvarFloat`, `FlushResourceKvp` solo en servidor, `io.lines`, códecs de la NUI y DevTools en `localhost:13172`. |
 | 2026-10-20 | Primera versión completa, centrada exclusivamente en FiveM Legacy (FXServer). Datos verificados a esta fecha: artefacto *recommended* 35245 / *latest* 37579, build 3889, txAdmin 8.1.1, ESX 1.16.4, Qbox 1.24.0, ox_lib 3.40.x, oxmysql 2.14.x, ox_inventory 2.48.x, MariaDB 11.4/11.8 LTS. |
 
 > **Cómo mantener esta guía al día:** revisa cada mes las *release notes* del foro (categoría *Cfx.re Announcements → Release Notes*), la página de descarga de artefactos, los *changelogs* de txAdmin y de tu framework, y actualiza las versiones de la tabla anterior.
