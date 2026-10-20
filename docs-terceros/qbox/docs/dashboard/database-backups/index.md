@@ -1,0 +1,150 @@
+> Fuente original: https://github.com/Qbox-project/qbox-docs/blob/260c0ecedce58bece2cf94ebef73be42d08258ac/docs/dashboard/database-backups/index.mdx · repositorio Qbox-project/qbox-docs @ 260c0ec · copiado el 2026-10-20
+
+# Database Backups
+
+*Automatic, off-site backups of your FiveM database with the qbx_db_backup resource. Included on every plan, nothing to install, and your database never has to be reachable from the internet.*
+
+Far too often a server gets wiped by a malicious actor or a simple mistake, and without a recent backup months of progress are gone in an instant.
+That is why database backups are included on every plan, including the free one, and they never count toward your CDN storage.
+
+## How it works
+
+Backups are made by a small FiveM resource called [`qbx_db_backup`](https://github.com/Qbox-project/qbx_db_backup) that runs on your own server, right next to the database.
+It dumps the database, zips it, and uploads the result to the dashboard. That means:
+
+- **Your database stays closed to the outside.** Nothing connects to it from the internet, so you do not need a remote SQL user or an open port for backups.
+- **We never store your database password.** The resource reads the same `mysql_connection_string` your server already uses and keeps it on your machine.
+- **Nothing to install.** The resource ships its own `mariadb-dump` for Windows and Linux (x64).
+
+Every plan may back up once an hour. What differs between plans is how much backup storage you get:
+
+| Plan | Backup storage |
+| --- | --- |
+| Free | 1 GB |
+| Ducklin | 2 GB |
+| Duck | 4 GB |
+| Qboxxer | 8 GB |
+
+When the storage is full, the oldest backup is deleted automatically to make room for the new one. Backups are compressed, so a database that is 500 MB in MariaDB is usually well under 100 MB as a backup.
+The **Backup storage** card at the top of the page shows how much of your plan's backup storage is used.
+
+> **Nota:** Hourly is the most frequent the dashboard accepts. If you prefer fewer backups, set a longer interval on the resource (see below); the storage then covers a longer period.
+
+## Setup
+
+This takes about five minutes.
+
+### 1. Install the resource
+
+Download the latest release from the [releases page](https://github.com/Qbox-project/qbx_db_backup/releases) and extract it into your `resources/` folder, so you end up with `resources/qbx_db_backup`.
+
+### 2. Get your token
+
+In the dashboard, open your organization, go to **Database backups**, and press **Connect resource**.
+A window shows the exact lines to add to your `server.cfg`, including a token that identifies your server.
+
+> **Advertencia:** The token is shown only once. Copy it before you close the window. If you lose it, press **Rotate token** to get a new one.
+
+### 3. Add it to server.cfg
+
+Add these lines **after** your `mysql_connection_string`:
+
+```cfg
+add_unsafe_child_process_permission "qbx_db_backup"
+set qbx_db_backup_token "paste-your-token-here"
+ensure qbx_db_backup
+```
+
+The first line is required. FiveM does not let a resource start another program unless you allow it explicitly, and the backup runs `mariadb-dump` as a separate program so your server never stutters while a backup is running.
+
+> **Peligro:** Use `set`, never `setr`. `setr` sends the value to every connected player, and this is your token.
+
+### 4. Restart the server
+
+After the restart, the **Backup resource** card in the dashboard shows **Online** within a few minutes, and your first backup runs within the hour.
+If you do not want to wait, type `qbx_db_backup run` in the server console.
+
+## Day to day
+
+Everything is automatic once it is set up. The dashboard lists every backup with its size and date; you can download or delete any of them.
+A backup that is still running cannot be deleted; wait until it shows **Ready** or **Failed**.
+
+Downloading a backup needs **Manage** access to Database backups in the member's [role](../team/roles.md), because a backup contains your whole database, player data included. Members with **View** access only see the list.
+
+Useful console commands:
+
+| Command | What it does |
+| --- | --- |
+| `qbx_db_backup run` | Back up right now |
+| `qbx_db_backup status` | Show the schedule, the last result, and how much of your storage is used |
+| `qbx_db_backup test` | Check the configuration without touching the database |
+
+By default the resource backs up every hour. To change that, add to `server.cfg`:
+
+```cfg
+set qbx_db_backup_interval_hours "6"
+```
+
+Any whole number of hours works; `0` turns the schedule off so only `qbx_db_backup run` makes backups.
+
+## Notifications
+
+To get a Discord message when a backup finishes or fails, paste a Discord webhook URL into **Discord notifications** on the **Backup resource** card and press **Save notifications**.
+Turn on **Notify on failures only** if you only want to hear about problems. Only Discord webhooks are supported; clear the URL and save to turn notifications off.
+
+## Keeping it secure
+
+**Your token** is the only thing that links your server to your organization. It cannot read your backups or anything else in the dashboard; it can only upload new ones.
+Press **Rotate token** if you think it leaked, or **Disconnect** to stop accepting uploads from that server altogether.
+
+**Allowed IPs** takes it a step further. Because the uploads always come from your game server, you can restrict the token to your server's address.
+Open the Backup resource card, look at *Your server was last seen from*, press **Use** next to it, and save. Any request with your token from another address is refused, and the dashboard tells you which address was rejected so you can fix it if your server ever gets a new IP.
+
+**The database user.** The resource uses your server's own connection by default, which is fine: it only ever reads. If you prefer a separate read-only user, create one that only works from the server itself and point the resource at it:
+
+```sql
+CREATE USER 'backup'@'localhost' IDENTIFIED BY 'a-strong-password';
+GRANT SELECT, SHOW VIEW, TRIGGER, EVENT ON your_database.* TO 'backup'@'localhost';
+```
+
+```cfg
+set qbx_db_backup_connection_string "mysql://backup:a-strong-password@localhost:3306/your_database"
+```
+
+Note the `localhost`: no remote access is needed. Without `EVENT` and routine access the backup still succeeds, just without events and stored routines, and the dashboard shows a note saying so.
+
+> **Consejo:** If you only opened port 3306 or created a remote SQL user for the old backup method, you can close the port and drop that user now.
+
+## Without the dashboard
+
+The resource also works on its own. Leave `qbx_db_backup_token` out of your `server.cfg` and it writes the zips to `resources/qbx_db_backup/backups/` instead, keeping the newest seven (change with `qbx_db_backup_local_keep`).
+You will not get off-site storage, history, or the dashboard's alerts, but it is a solid free backup for any server.
+
+## Moving from the old cloud backups
+
+Until now the dashboard connected to your database from the cloud, using a database user and password you stored with us. That method is retired on **30 September 2026**.
+
+- Existing setups keep running until then, but the connection form is gone; you cannot create or edit one.
+- As soon as the first backup arrives from the resource, your organization switches over and the stored database credentials are deleted automatically.
+- On 30 September, any stored credentials that are left are deleted as well, and the old method stops for everyone.
+- Do not want to wait? Press **Remove saved connection now** in the banner at the top of the page. This deletes the stored credentials and stops the old schedule right away.
+- If the old cloud backups fail three times in a row, they are paused and the page shows a **Scheduled backups are paused** banner with the reason. Once the problem is fixed, press **Resume backups**, or better, install the resource.
+
+Installing the resource is all you need to do. Your existing backups stay downloadable.
+
+## Troubleshooting
+
+**The console says child processes are blocked.**
+The `add_unsafe_child_process_permission "qbx_db_backup"` line is missing, or it comes after `ensure qbx_db_backup`. Add it above and restart.
+
+**The dashboard shows Offline.**
+The resource is not running, the token is wrong, or the server's address is not on your allowed IPs. In the last case the card shows the rejected address in orange; add it to the list.
+
+**"Backup is 1.4 GB but the Free plan holds 1 GB of backups."**
+A single backup is larger than your plan's storage, so there is nothing to delete to make room. Upgrade the plan or shrink the database.
+
+**"Next backup allowed at …"**
+You already backed up in the last hour. The scheduled one runs as soon as it is allowed.
+
+**Managed hosting (ZAP, Pterodactyl, Pelican and similar).**
+The resource bundles its own dump tool, so nothing has to be installed on the host. You only need to be able to edit `server.cfg`, which every panel allows. Supported platforms are Windows x64 and Linux x64.

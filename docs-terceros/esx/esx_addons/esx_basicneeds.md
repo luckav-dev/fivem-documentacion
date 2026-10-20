@@ -1,0 +1,64 @@
+> Fuente original: https://github.com/esx-framework/esx-legacy-documenation/blob/031b7f7543db595e3a6503e822107b7f60ce14ec/src/pages/en/esx_addons/esx_basicneeds.mdx · repositorio esx-framework/esx-legacy-documenation @ 031b7f7 · copiado el 2026-10-20
+
+# esx_basicneeds
+
+[Github Link](https://github.com/esx-framework/ESX-Legacy-Addons/tree/main/%5Besx_addons%5D/esx_basicneeds)
+
+This script implements hunger and thirst status, they can be increased when eating bread or drinking water.
+
+# Configuration
+
+- `Config.Visible` (deprecated)
+    - type: boolean
+    - default: true
+    - description: Show or hide the hunger and thirst status.
+
+- `Config.Items`
+    - type: table
+    - description: Register Items that can be used as food or drinks.
+    - layout:
+```lua
+Config.Items = {
+    ['item'] = { -- Item name
+        type = 'food', -- "food" or "drink"
+        prop = "prop_name",
+        status = 200000, -- how much status will be increased
+        remove = true, -- remove item after use
+        anim = {dict = 'anim_dict', name = 'anim_name', settings = {8.0, -8, -1, 49, 0, 0, 0, 0}}, -- animation for eating/drinking
+        pos = vector3(0.15, 0.03, 0.0), -- prop position
+        rot = vector3(15.0, 175.0, 5.0) -- prop rotation
+    },
+}
+```
+
+## Events
+
+### resetStatus
+
+**Client-Sided**: Reset the hunger and thirst status.
+
+```lua
+TriggerEvent('esx_basicneeds:resetStatus')
+```
+
+### healPlayer
+
+**Client & Server Sided**: Heal the player.
+
+```lua
+TriggerEvent('esx_basicneeds:healPlayer')
+```
+
+```lua
+TriggerClientEvent('esx_basicneeds:healPlayer', source)
+```
+
+### onUse
+
+**Client-Sided**: Triggered when the player uses an item.
+
+```lua
+RegisterNetEvent('esx_basicneeds:onUse', function(itemType, propName, anim, pos, rot)
+    -- Do something
+end)
+```

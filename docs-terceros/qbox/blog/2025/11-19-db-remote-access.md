@@ -1,0 +1,190 @@
+> Fuente original: https://github.com/Qbox-project/qbox-docs/blob/260c0ecedce58bece2cf94ebef73be42d08258ac/blog/2025/11-19-db-remote-access.mdx · repositorio Qbox-project/qbox-docs @ 260c0ec · copiado el 2026-10-20
+
+# Remotely accessing MariaDB
+
+*Learn how to configure your MariaDB database for remote access, so you can connect external tools like Grafana for monitoring and analytics without exposing your database to the internet.*
+
+*Autores: chatdisabled*
+
+> **Nota: Update, September 2026**
+>
+> Database backups no longer need remote access. The dashboard now uses the [`qbx_db_backup`](https://github.com/Qbox-project/qbx_db_backup) resource, which runs on your own server and uploads the backups from there. Follow the [Database Backups guide](../../docs/dashboard/database-backups/index.md) instead. This article is still the right one if you want to connect Grafana or another external tool to your database.
+
+It is sometimes useful to reach your database from outside the machine it runs on, for example to connect monitoring tools like Grafana or to run queries from your own PC.
+Configuring remote access to your MariaDB instance is not hard, but it is easy to do in a way that leaves your database wide open, so this guide walks through doing it safely.
+
+> **Nota:** This tutorial is purely targeted at MariaDB (which you should be using for Qbox anyway).
+
+## Step 1: Configure MariaDB Binding
+
+By default, MariaDB only listens on `localhost` (127.0.0.1). To allow remote connections, you need to modify the binding address.
+To do this, you will need to locate the configuration file for MariaDB. Depending on your system, it could be in one of these locations:
+
+- **Unix/BSD**: `/etc/my.cnf`
+- **Debian/Ubuntu**: `/etc/mysql/my.cnf`
+- **Windows**: `C:\Program Files\MariaDB X.X\data\my.ini`
+
+> or any other custom location where you installed it
+
+Once you open this file, it will probably look something like this
+
+```ini
+[mysqld]
+datadir=C:/Program Files/MariaDB 12.0/data
+port=3306
+innodb_buffer_pool_size=4042M
+[client]
+port=3306
+plugin-dir=C:\Program Files\MariaDB 12.0/lib/plugin
+```
+
+Here we will add a line telling MariaDB to listen on all network interfaces by adding the following line under the `[mysqld]` section:
+
+```ini
+bind-address = 0.0.0.0
+```
+
+Your file should now look like this
+
+```ini
+[mysqld]
+datadir=C:/Program Files/MariaDB 12.0/data
+port=3306
+innodb_buffer_pool_size=4042M
+bind-address = 0.0.0.0
+[client]
+port=3306
+plugin-dir=C:\Program Files\MariaDB 12.0/lib/plugin
+```
+
+### Restart MariaDB
+
+For these changes to take effect, we will need to restart MariaDB. This will temporarily stop your database service, so plan accordingly.
+
+> **Advertencia:** If your server is currently live, please wait in between restarts to do this.
+
+**Linux (systemd):**
+```bash
+sudo systemctl restart mariadb
+```
+
+**Windows (Command Prompt as Administrator):**
+```cmd
+net stop MariaDB
+net start MariaDB
+```
+
+## Step 2: Create a Remote Access User
+
+For security reasons, we will create a user without destructive permissions, and only on the database it actually needs.
+In case of hijacking or if someone guesses your password, there will be no damage done. We will need to open the MySQL interface first.
+
+**Windows**
+
+On Windows you simply press the Windows key and search for `mariadb`.
+You will find `MySQL Client (MariaDB X.X (x64))`, open this. Now fill in your root password or simply press enter if you have none.
+
+**Linux**
+
+In the CLI simply enter `mariadb` and press enter. If you are currently root in Linux or have sudo, you will automatically access the MariaDB environment.
+But if it asks for a password, simply fill in the password for your MySQL root user and then press enter.
+
+Now we will create a SQL user called `special_user` with the password `strong_password_here` that can read the database `your_database`. You can copy and paste the following.
+
+> **Advertencia:** Do this line per line so you can change the password, the username and the database name.
+> If you copy paste every line at once it will directly go through without you having the chance to change stuff.
+
+> **Nota:** Please change the password to something strong. Save it, remember it, and keep it secure. Also change the name of the user for added obscurity.
+
+```sql
+CREATE USER 'special_user'@'%' IDENTIFIED BY 'strong_password_here';
+GRANT SELECT, SHOW VIEW, TRIGGER ON your_database.* TO 'special_user'@'%';
+FLUSH PRIVILEGES;
+```
+
+**Permissions explained:**
+- `SELECT` - Read data from tables
+- `SHOW VIEW` - View database views and schemas
+- `TRIGGER` - Read trigger information
+
+> **Advertencia:** Grant these on your database only (`your_database.*`), not on everything (`*.*`). A global grant also gives the user read access to MariaDB's own `mysql` database, which includes the table with all your user password hashes.
+
+To verify the user was created successfully, run:
+
+```sql
+SELECT USER, HOST FROM mysql.user;
+```
+
+which outputs:
+
+```powershell
++--------------+-----------+
+| User         | Host      |
++--------------+-----------+
+| special_user | %         |
+| root         | 127.0.0.1 |
+| root         | ::1       |
+| root         | computer  |
+| mariadb.sys  | localhost |
+| root         | localhost |
++--------------+-----------+
+```
+
+You should see `special_user` listed with host `%` among the other users.
+
+> Notice that root is listed with the host `127.0.0.1`. This means that despite MariaDB now being accessible for remote connections, root is not.
+> So even if root doesn't have a password set it is safe from outside attacks.
+
+> **Advertencia:** If this is not the case, you should disallow root from the host `%` or add a strong password for the root account.
+
+## Step 3: Configure Firewall Rules
+
+Never open port 3306 (default MariaDB port) to the entire internet. Only allow the fixed IP address of each machine that really needs to reach the database: the server your Grafana runs on, or your own PC if it has a fixed address. Anyone scanning your server will find the port closed.
+
+**Windows**
+
+Open PowerShell as Administrator and run, replacing the address with the one you want to allow:
+
+```powershell
+New-NetFirewallRule -DisplayName "MariaDB (Grafana host)" `
+   -Direction Inbound -Protocol TCP -LocalPort 3306 `
+   -RemoteAddress 203.0.113.7 -Action Allow
+```
+
+Run it again with a different name and address for every machine that needs access.
+
+If you previously created an unrestricted rule for port 3306 through the firewall wizard, delete it (or open its Properties → Scope tab and restrict "Remote IP address"), otherwise the open rule still applies.
+
+**Linux**
+
+```bash
+sudo ufw allow from 203.0.113.7 to any port 3306 proto tcp
+sudo ufw reload
+```
+
+Repeat the first line for every machine that needs access.
+
+If you previously ran `sudo ufw allow 3306/tcp`, remove that unrestricted rule:
+
+```bash
+sudo ufw delete allow 3306/tcp
+```
+
+> **Advertencia:** Do not allow Cloudflare's published IP ranges as a substitute for a fixed address. Those ranges are the addresses Cloudflare uses to reach your website; services running inside Cloudflare, such as Workers, connect from other addresses that are not published. Allowing the ranges would not let them through, and it would let every other Cloudflare customer's code knock on your port.
+
+> **Nota:** If your database is located on a machine behind a DDoS provider, they might block connections on non-gaming-related ports.
+> If this is the case, contact your hosting provider for solutions.
+
+## Conclusion
+
+You have successfully configured your MariaDB database for remote access. By following this guide, you've:
+
+- Modified the MariaDB binding to listen on all network interfaces
+- Created a dedicated remote user with read-only permissions on just your database
+- Configured your firewall to only accept connections from the machines that need them
+- Secured your root account by keeping it local-only
+
+This setup allows you to safely connect monitoring tools like Grafana and manage your database from outside your machine while maintaining security best practices.
+The `special_user` account provides read-only access, ensuring that even if credentials are compromised, your data remains protected from destructive actions.
+
+Remember to keep your passwords strong, update MariaDB regularly, and monitor your connections for any suspicious activity.

@@ -1,0 +1,40 @@
+# Featured Server List
+
+*>*
+
+> Fuente original: https://docs.fivem.net/docs/server-manual/featured-server-list/ · repositorio `citizenfx/fivem-docs` @ `6ec9770` · copiado el 2026-10-20 · [índice de la documentación oficial](../README.md)
+
+## What are Featured Servers?
+
+Featured servers are a list of curated servers displayed on the right side of the FiveM server list.\
+Generally speaking, featured servers are accessible experiences for new players, offering fast paced gamemodes which can be understood within just a few minutes, either alone, or with your friends.
+
+## Criteria for servers to be featured
+
+Certain criteria must be met for a server to be eligible for the featured server list:
+
+- The server does not violate the [FiveM PLA][fivem-pla].
+- The server offers a non-roleplay setting.
+- The server's language is either English or offers support for multiple languages.
+- The server receives regular updates and is well maintained.
+- Players can connect to the server directly by pressing the "connect" button. No additional limitations should be enforced (e.g., requiring players to join a Discord server or be added to an allowlist).
+
+## Reasons for removal from the featured server list
+
+- The server violates the [FiveM PLA][fivem-pla].
+- The server has changed its core gameplay mechanics or shifted the gameplay loop.
+- The server is empty and no longer provides the same gameplay experience for the community.
+- The server is abandoned and no longer receives regular updates.
+- The server is unreachable or players are unable to connect.
+
+## Are you accepting featured servers applications?
+
+Right now, we are not accepting new applications for Featured Servers. All servers are handpicked by the Cfx team.
+
+## How can I report a Featured Server that doesn't fit the requirements anymore?
+
+To report a Featured Server which does not meet the requirements anymore or violates the [FiveM PLA][fivem-pla], please use our [server reporting form][report-server].
+Make sure to provide us with as much information as possible in your report.
+
+[fivem-pla]: https://fivem.net/terms
+[report-server]: https://support.cfx.re/hc/en-us/requests/new?ticket_form_id=13998414161564

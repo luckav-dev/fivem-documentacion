@@ -1,0 +1,54 @@
+> Fuente original: https://github.com/esx-framework/esx-legacy-documenation/blob/031b7f7543db595e3a6503e822107b7f60ce14ec/src/pages/en/index.mdx · repositorio esx-framework/esx-legacy-documenation @ 031b7f7 · copiado el 2026-10-20
+
+# ESX Legacy Framework: The Ultimate FiveM Roleplay Solution
+
+*ESX Legacy is the premier open-source framework for creating immersive FiveM roleplay servers. Free, community-driven, and feature-rich with comprehensive documentation.*
+
+Build immersive and endlessly customizable FiveM roleplay servers with the most trusted framework in the community.
+
+## What Makes ESX Legacy the Best Choice for FiveM Servers?
+
+Started in 2017, ESX has become the **#1 FiveM framework** trusted by thousands of server owners worldwide. Our flagship project, **ESX Legacy**, provides everything you need to create professional-grade roleplay servers that engage players and build lasting communities.
+
+### Why Choose ESX Legacy Framework?
+
+- **🚀 Battle-Tested Performance**: Used by thousands of active servers globally  
+- **📖 Complete Documentation**: Comprehensive guides for developers of all skill levels
+- **🔧 Extensive Addon Library**: 50+ pre-built systems for jobs, economy, and gameplay
+- **👥 Massive Community**: 13,000+ developers providing support and resources
+- **💎 100% Free & Open Source**: No licensing fees or restrictions
+
+## Core Features That Set ESX Apart
+
+### Advanced Job System
+Create complex employment opportunities with our robust job framework supporting police, medical, mechanic, and custom civilian roles.
+
+### Dynamic Economy Management  
+Built-in banking, currency systems, and transaction logging for realistic economic gameplay.
+
+### Comprehensive Player Management
+Character creation, inventory systems, and persistent player data storage.
+
+## Troubleshooting & Support
+
+Encountering issues? Our community has you covered:
+
+- **[Common Problems & Solutions](troubleshoot.md)** - Quick fixes for typical setup issues
+- **[Discord Community](https://discord.esx-framework.org/)** - 13,000+ members ready to help
+- **[GitHub Repository](https://github.com/esx-framework)** - Source code and issue tracking
+
+## Why Thousands Choose ESX Legacy
+
+> "ESX Legacy transformed our small community into a thriving 200+ player server. The documentation made development accessible even for beginners." - *Server Owner*
+
+### Proven Success Metrics
+- **10,000+** active servers worldwide
+- **500,000+** players experience ESX daily  
+- **98%** uptime reliability across installations
+- **24/7** community support availability
+
+---
+
+**Ready to revolutionize your FiveM server?** Join thousands of successful server owners who chose ESX Legacy as their foundation.
+
+[View Documentation](esx_core.md) | [Join Community](https://discord.esx-framework.org/)
